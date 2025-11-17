@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getDailyOHLC, getQuote } from '@/lib/marketData';
+import { getCryptoQuote, getCryptoOHLC } from '@/lib/cryptoData';
 import { detectChannel, detectPatterns, computeCombinedSignal } from '@/lib/analysis';
 import {
   Candle,
@@ -32,6 +33,7 @@ interface TickerDetailProps {
 
 export function TickerDetail({ symbol }: TickerDetailProps) {
   const { user } = useAuth();
+  const [assetType, setAssetType] = useState<'stock' | 'crypto'>('stock');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [channel, setChannel] = useState<ChannelDetectionResult | null>(null);
@@ -89,43 +91,63 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
     if (!user) return;
 
     try {
+      // First, check if this symbol is in the watchlist to get asset type
+      const { data: watchlistItem } = await supabase
+        .from('watchlist_items')
+        .select('asset_type')
+        .eq('user_id', user.id)
+        .eq('symbol', symbol)
+        .maybeSingle();
+
+      const itemAssetType = watchlistItem?.asset_type || 'stock';
+      setAssetType(itemAssetType);
+
+      // Route to appropriate API based on asset type
       const [candlesData, quoteData] = await Promise.all([
-        getDailyOHLC(symbol),
-        getQuote(symbol),
+        itemAssetType === 'crypto' ? getCryptoOHLC(symbol) : getDailyOHLC(symbol),
+        itemAssetType === 'crypto' ? getCryptoQuote(symbol) : getQuote(symbol),
       ]);
 
       setCandles(candlesData);
       setQuote(quoteData);
 
-      const channelResult = detectChannel(candlesData);
-      const patternResult = detectPatterns(candlesData);
-      const signalResult = computeCombinedSignal(channelResult, patternResult, candlesData);
+      // Only run channel/pattern analysis for stocks
+      if (itemAssetType === 'stock') {
+        const channelResult = detectChannel(candlesData);
+        const patternResult = detectPatterns(candlesData);
+        const signalResult = computeCombinedSignal(channelResult, patternResult, candlesData);
 
-      setChannel(channelResult);
-      setPattern(patternResult);
-      setSignal(signalResult);
+        setChannel(channelResult);
+        setPattern(patternResult);
+        setSignal(signalResult);
 
-      if (channelResult.hasChannel) {
-        const { error: upsertError } = await supabase.from('combined_signals').upsert({
-          user_id: user.id,
-          symbol,
-          timeframe: '1d',
-          detected_at: new Date().toISOString().split('T')[0],
-          bias: signalResult.bias,
-          channel_status: channelResult.status,
-          main_pattern: patternResult.mainPattern,
-          notes: signalResult.notes,
-          cautions: signalResult.cautions,
-        });
-
-        if (upsertError) {
-          console.error('Failed to save signal:', upsertError);
-          toast({
-            title: 'Warning',
-            description: 'Failed to save analysis signal to database',
-            variant: 'destructive',
+        if (channelResult.hasChannel) {
+          const { error: upsertError } = await supabase.from('combined_signals').upsert({
+            user_id: user.id,
+            symbol,
+            timeframe: '1d',
+            detected_at: new Date().toISOString().split('T')[0],
+            bias: signalResult.bias,
+            channel_status: channelResult.status,
+            main_pattern: patternResult.mainPattern,
+            notes: signalResult.notes,
+            cautions: signalResult.cautions,
           });
+
+          if (upsertError) {
+            console.error('Failed to save signal:', upsertError);
+            toast({
+              title: 'Warning',
+              description: 'Failed to save analysis signal to database',
+              variant: 'destructive',
+            });
+          }
         }
+      } else {
+        // Clear analysis for crypto
+        setChannel(null);
+        setPattern(null);
+        setSignal(null);
       }
 
       await Promise.all([
