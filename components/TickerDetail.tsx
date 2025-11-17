@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getDailyOHLC, getQuote } from '@/lib/marketData';
 import { detectChannel, detectPatterns, computeCombinedSignal } from '@/lib/analysis';
@@ -49,23 +49,39 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    checkUser();
-  }, []);
+  async function loadNotes() {
+    const { data } = await supabase
+      .from('ticker_notes')
+      .select('*')
+      .eq('symbol', symbol)
+      .order('created_at', { ascending: false });
 
-  useEffect(() => {
-    if (userId) {
-      loadTickerData();
-    }
-  }, [userId, symbol]);
-
-  async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
-    setUserId(effectiveUserId);
+    setNotes(data || []);
   }
 
-  async function loadTickerData() {
+  async function loadUploads() {
+    const { data } = await supabase
+      .from('research_uploads')
+      .select('*')
+      .eq('symbol', symbol)
+      .order('uploaded_at', { ascending: false });
+
+    setUploads(data || []);
+  }
+
+  async function loadAlerts() {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('price_alerts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('symbol', symbol)
+      .order('created_at', { ascending: false });
+
+    setAlerts(data || []);
+  }
+
+  const loadTickerData = useCallback(async () => {
     try {
       const [candlesData, quoteData] = await Promise.all([
         getDailyOHLC(symbol),
@@ -123,38 +139,23 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
     } finally {
       setLoading(false);
     }
+  }, [symbol, userId, toast]);
+
+  async function checkUser() {
+    const { data: { user } } = await supabase.auth.getUser();
+    const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
+    setUserId(effectiveUserId);
   }
 
-  async function loadNotes() {
-    const { data } = await supabase
-      .from('ticker_notes')
-      .select('*')
-      .eq('symbol', symbol)
-      .order('created_at', { ascending: false });
+  useEffect(() => {
+    checkUser();
+  }, []);
 
-    setNotes(data || []);
-  }
-
-  async function loadUploads() {
-    const { data } = await supabase
-      .from('uploads')
-      .select('*')
-      .contains('symbols', [symbol])
-      .order('uploaded_at', { ascending: false });
-
-    setUploads(data || []);
-  }
-
-  async function loadAlerts() {
-    const { data } = await supabase
-      .from('price_alerts')
-      .select('*')
-      .eq('symbol', symbol)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false});
-
-    setAlerts(data || []);
-  }
+  useEffect(() => {
+    if (userId) {
+      loadTickerData();
+    }
+  }, [userId, loadTickerData]);
 
   async function addNote() {
     if (!newNoteTitle.trim() || !userId) return;
