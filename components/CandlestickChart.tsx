@@ -4,14 +4,14 @@ import { useMemo } from 'react';
 import { Candle, ChannelDetectionResult } from '@/lib/types';
 import {
   ComposedChart,
-  Bar,
+  Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Cell,
 } from 'recharts';
 
 interface CandlestickChartProps {
@@ -21,19 +21,13 @@ interface CandlestickChartProps {
 
 export function CandlestickChart({ candles, channel }: CandlestickChartProps) {
   const chartData = useMemo(() => {
-    return candles.map((candle) => {
-      const isGreen = candle.close >= candle.open;
-      return {
-        date: new Date(candle.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        high: candle.high,
-        low: candle.low,
-        open: candle.open,
-        close: candle.close,
-        range: [Math.min(candle.open, candle.close), Math.max(candle.open, candle.close)],
-        color: isGreen ? '#10b981' : '#ef4444',
-        isGreen,
-      };
-    });
+    return candles.map((candle) => ({
+      date: new Date(candle.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      high: candle.high,
+      low: candle.low,
+      open: candle.open,
+      close: candle.close,
+    }));
   }, [candles]);
 
   const yDomain = useMemo(() => {
@@ -125,19 +119,41 @@ export function CandlestickChart({ candles, channel }: CandlestickChartProps) {
           </>
         )}
 
-        {/* Wicks (high-low lines) */}
-        <Bar dataKey="high" stackId="wick" fill="transparent" isAnimationActive={false}>
-          {chartData.map((entry, index) => (
-            <Cell key={`wick-${index}`} stroke={entry.color} strokeWidth={1.5} />
-          ))}
-        </Bar>
+        {/* High-Low range as light area */}
+        <Area
+          type="monotone"
+          dataKey="high"
+          stroke="none"
+          fill="#cbd5e1"
+          fillOpacity={0.2}
+        />
+        <Area
+          type="monotone"
+          dataKey="low"
+          stroke="none"
+          fill="#ffffff"
+          fillOpacity={1}
+        />
 
-        {/* Candlestick bodies */}
-        <Bar dataKey="range" stackId="candle" barSize={8} isAnimationActive={false}>
-          {chartData.map((entry, index) => (
-            <Cell key={`candle-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={1} />
-          ))}
-        </Bar>
+        {/* Close price line - prominent */}
+        <Line
+          type="monotone"
+          dataKey="close"
+          stroke="#3b82f6"
+          strokeWidth={2.5}
+          dot={{ fill: '#3b82f6', r: 3 }}
+          activeDot={{ r: 5 }}
+        />
+
+        {/* Open price line - subtle */}
+        <Line
+          type="monotone"
+          dataKey="open"
+          stroke="#94a3b8"
+          strokeWidth={1}
+          strokeDasharray="3 3"
+          dot={false}
+        />
       </ComposedChart>
     </ResponsiveContainer>
   );
