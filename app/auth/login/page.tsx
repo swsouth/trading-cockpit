@@ -19,6 +19,12 @@ export default function LoginPage() {
   const { signIn } = useAuth();
   const router = useRouter();
 
+  // Debug: Log if env vars are available
+  if (typeof window !== 'undefined') {
+    console.log('Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('Supabase Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
