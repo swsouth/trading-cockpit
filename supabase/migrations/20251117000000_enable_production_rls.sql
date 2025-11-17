@@ -40,6 +40,14 @@ DROP POLICY IF EXISTS "demo_profiles_insert" ON profiles;
 DROP POLICY IF EXISTS "demo_profiles_update" ON profiles;
 DROP POLICY IF EXISTS "demo_profiles_delete" ON profiles;
 
+-- Remove the demo profile FIRST (before adding foreign key constraint)
+DELETE FROM combined_signals WHERE user_id = '00000000-0000-0000-0000-000000000000';
+DELETE FROM price_alerts WHERE user_id = '00000000-0000-0000-0000-000000000000';
+DELETE FROM research_uploads WHERE user_id = '00000000-0000-0000-0000-000000000000';
+DELETE FROM ticker_notes WHERE user_id = '00000000-0000-0000-0000-000000000000';
+DELETE FROM watchlist_items WHERE user_id = '00000000-0000-0000-0000-000000000000';
+DELETE FROM profiles WHERE id = '00000000-0000-0000-0000-000000000000';
+
 -- Re-enable foreign key constraints for profiles (if not exists)
 DO $$
 BEGIN
@@ -148,6 +156,3 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id);
 
 -- Note: Profile insert is handled by the signup function in AuthContext
-
--- Remove the demo profile (if it exists)
-DELETE FROM profiles WHERE id = '00000000-0000-0000-0000-000000000000';
