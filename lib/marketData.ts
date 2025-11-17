@@ -2,6 +2,8 @@ import { Candle, Quote } from './types';
 
 const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const ALPHA_VANTAGE_API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
 
 // Simple in-memory cache to reduce API calls
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -61,48 +63,58 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
   }
 
   // If no API key, use mock data
-  if (!FINNHUB_API_KEY) {
-    console.warn('Finnhub API key not configured, using mock data');
+  if (!ALPHA_VANTAGE_API_KEY) {
+    console.warn('Alpha Vantage API key not configured, using mock data');
     return generateMockCandles(symbol);
   }
 
   try {
-    // Calculate timestamps for last 90 days (to get ~60 trading days)
-    const to = Math.floor(Date.now() / 1000);
-    const from = Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000);
-
-    const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
+    // Alpha Vantage TIME_SERIES_DAILY endpoint
+    const url = `${ALPHA_VANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=compact&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
     const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Finnhub API error: ${response.status}`);
+      throw new Error(`Alpha Vantage API error: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Finnhub returns 's': 'no_data' if symbol not found or has no data
-    if (data.s === 'no_data' || !data.t || data.t.length === 0) {
+    // Check for API errors
+    if (data['Error Message']) {
+      console.warn(`Invalid symbol ${symbol}:`, data['Error Message']);
+      return generateMockCandles(symbol);
+    }
+
+    if (data['Note']) {
+      console.warn('Alpha Vantage rate limit reached:', data['Note']);
+      return generateMockCandles(symbol);
+    }
+
+    const timeSeries = data['Time Series (Daily)'];
+    if (!timeSeries) {
       console.warn(`No data found for symbol ${symbol}, using mock data`);
       return generateMockCandles(symbol);
     }
 
-    // Convert Finnhub format to our Candle format
-    const candles: Candle[] = data.t.map((timestamp: number, index: number) => ({
-      timestamp: new Date(timestamp * 1000).toISOString().split('T')[0],
-      open: parseFloat(data.o[index].toFixed(2)),
-      high: parseFloat(data.h[index].toFixed(2)),
-      low: parseFloat(data.l[index].toFixed(2)),
-      close: parseFloat(data.c[index].toFixed(2)),
-      volume: data.v[index],
-    }));
+    // Convert Alpha Vantage format to our Candle format
+    const candles: Candle[] = Object.entries(timeSeries)
+      .map(([date, values]: [string, any]) => ({
+        timestamp: date,
+        open: parseFloat(parseFloat(values['1. open']).toFixed(2)),
+        high: parseFloat(parseFloat(values['2. high']).toFixed(2)),
+        low: parseFloat(parseFloat(values['3. low']).toFixed(2)),
+        close: parseFloat(parseFloat(values['4. close']).toFixed(2)),
+        volume: parseInt(values['5. volume']),
+      }))
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp)); // Sort chronologically
 
     // Cache the results
     setCache(cacheKey, candles);
 
     return candles;
   } catch (error) {
-    console.error('Error fetching candles from Finnhub:', error);
+    console.error('Error fetching candles from Alpha Vantage:', error);
     console.warn('Falling back to mock data');
     return generateMockCandles(symbol);
   }
