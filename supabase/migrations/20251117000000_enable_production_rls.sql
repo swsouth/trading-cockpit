@@ -40,10 +40,18 @@ DROP POLICY IF EXISTS "demo_profiles_insert" ON profiles;
 DROP POLICY IF EXISTS "demo_profiles_update" ON profiles;
 DROP POLICY IF EXISTS "demo_profiles_delete" ON profiles;
 
--- Re-enable foreign key constraints for profiles
-ALTER TABLE profiles
-  ADD CONSTRAINT profiles_id_fkey
-  FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- Re-enable foreign key constraints for profiles (if not exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'profiles_id_fkey'
+  ) THEN
+    ALTER TABLE profiles
+      ADD CONSTRAINT profiles_id_fkey
+      FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Watchlist Items: Users can only access their own items
 CREATE POLICY "Users can view own watchlist items"
