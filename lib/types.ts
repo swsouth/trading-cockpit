@@ -62,6 +62,7 @@ export type WatchlistItem = {
   user_id: string;
   symbol: string;
   display_name: string | null;
+  asset_type: 'stock' | 'crypto';
   created_at: string;
 };
 
