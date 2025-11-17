@@ -22,8 +22,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CandlestickChart } from '@/components/CandlestickChart';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, Bell } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Bell, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TickerDetailProps {
   symbol: string;
@@ -40,6 +41,8 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteBody, setNewNoteBody] = useState('');
@@ -130,6 +133,9 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
         loadUploads(),
         loadAlerts(),
       ]);
+
+      // Set last updated timestamp
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading ticker data:', error);
       toast({
@@ -139,8 +145,18 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [symbol, user, toast]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadTickerData();
+    toast({
+      title: 'Data refreshed',
+      description: 'Market data has been updated',
+    });
+  };
 
   useEffect(() => {
     if (user) {
@@ -285,23 +301,41 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Link>
-          <div className="flex items-baseline gap-4">
-            <h1 className="text-4xl font-bold text-slate-900">{symbol}</h1>
-            {quote && (
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-semibold text-slate-900">
-                  ${quote.price.toFixed(2)}
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-4">
+              <h1 className="text-4xl font-bold text-slate-900">{symbol}</h1>
+              {quote && (
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-semibold text-slate-900">
+                    ${quote.price.toFixed(2)}
+                  </span>
+                  <span
+                    className={`text-lg font-medium ${
+                      quote.changePercent >= 0 ? 'text-emerald-600' : 'text-red-600'
+                    }`}
+                  >
+                    {quote.changePercent >= 0 ? '+' : ''}
+                    {quote.changePercent.toFixed(2)}%
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {lastUpdated && (
+                <span className="text-sm text-slate-500">
+                  Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
                 </span>
-                <span
-                  className={`text-lg font-medium ${
-                    quote.changePercent >= 0 ? 'text-emerald-600' : 'text-red-600'
-                  }`}
-                >
-                  {quote.changePercent >= 0 ? '+' : ''}
-                  {quote.changePercent.toFixed(2)}%
-                </span>
-              </div>
-            )}
+              )}
+              <Button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -309,7 +343,14 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Price Chart</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Price Chart</CardTitle>
+                  {lastUpdated && candles.length > 0 && (
+                    <span className="text-xs text-slate-500 font-normal">
+                      Last updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
+                    </span>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <CandlestickChart candles={candles} channel={channel} />

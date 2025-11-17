@@ -11,6 +11,7 @@ import { Plus, X, TrendingUp, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/AuthContext';
+import { formatDistanceToNow } from 'date-fns';
 
 export function WatchlistDashboard() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -235,6 +236,9 @@ export function WatchlistDashboard() {
                               {quote.changePercent >= 0 ? '+' : ''}
                               {quote.changePercent.toFixed(2)}%
                             </div>
+                            <span className="text-xs text-slate-500">
+                              Updated {formatDistanceToNow(new Date(quote.timestamp), { addSuffix: true })}
+                            </span>
                           </div>
                         )}
 
