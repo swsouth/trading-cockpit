@@ -5,16 +5,17 @@ import { supabase } from '@/lib/supabaseClient';
 import { getQuote } from '@/lib/marketData';
 import { PriceAlert } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/AuthContext';
 
 export function PriceAlertChecker() {
+  const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     async function checkAlerts() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      if (!user) return;
 
+      try {
         const { data: alerts, error } = await supabase
           .from('price_alerts')
           .select('*')
@@ -71,7 +72,7 @@ export function PriceAlertChecker() {
     checkAlerts();
 
     return () => clearInterval(interval);
-  }, [toast]);
+  }, [user, toast]);
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Library, Settings, TrendingUp } from 'lucide-react';
+import { BarChart3, Library, Settings, TrendingUp, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
@@ -12,6 +14,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
 
   return (
     <aside className="w-64 bg-slate-900 text-white flex flex-col">
@@ -47,6 +50,23 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="p-4 border-t border-slate-700">
+        <div className="mb-3 px-4 py-2 bg-slate-800 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <User className="h-4 w-4" />
+            <span className="truncate">{user?.email}</span>
+          </div>
+        </div>
+        <Button
+          onClick={signOut}
+          variant="ghost"
+          className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white"
+        >
+          <LogOut className="h-5 w-5 mr-3" />
+          Sign Out
+        </Button>
+      </div>
     </aside>
   );
 }

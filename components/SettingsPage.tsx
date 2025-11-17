@@ -8,47 +8,46 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { User, Save } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (user) {
+      loadProfile();
+    }
+  }, [user]);
 
   async function loadProfile() {
+    if (!user) return;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
-      setUserId(effectiveUserId);
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      if (user) {
-        const { data: profileData, error } = await supabase
+      if (error) throw error;
+
+      if (profileData) {
+        setProfile(profileData);
+        setDisplayName(profileData.display_name || '');
+      } else {
+        const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
+          .insert({ id: user.id })
+          .select()
+          .single();
 
-        if (error) throw error;
-
-        if (profileData) {
-          setProfile(profileData);
-          setDisplayName(profileData.display_name || '');
-        } else {
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert({ id: user.id })
-            .select()
-            .single();
-
-          if (insertError) throw insertError;
-          setProfile(newProfile);
-        }
+        if (insertError) throw insertError;
+        setProfile(newProfile);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -58,7 +57,7 @@ export function SettingsPage() {
   }
 
   async function saveProfile() {
-    if (!userId) return;
+    if (!user) return;
 
     setSaving(true);
 
@@ -66,7 +65,7 @@ export function SettingsPage() {
       const { error } = await supabase
         .from('profiles')
         .update({ display_name: displayName || null })
-        .eq('id', userId);
+        .eq('id', user.id);
 
       if (error) throw error;
 
@@ -117,7 +116,7 @@ export function SettingsPage() {
                 User ID
               </label>
               <Input
-                value={userId || ''}
+                value={user?.id || ''}
                 disabled
                 className="bg-slate-50"
               />

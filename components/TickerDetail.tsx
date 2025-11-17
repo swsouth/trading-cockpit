@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/lib/AuthContext';
 import { getDailyOHLC, getQuote } from '@/lib/marketData';
 import { detectChannel, detectPatterns, computeCombinedSignal } from '@/lib/analysis';
 import {
@@ -29,6 +30,7 @@ interface TickerDetailProps {
 }
 
 export function TickerDetail({ symbol }: TickerDetailProps) {
+  const { user } = useAuth();
   const [candles, setCandles] = useState<Candle[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [channel, setChannel] = useState<ChannelDetectionResult | null>(null);
@@ -38,7 +40,6 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteBody, setNewNoteBody] = useState('');
@@ -70,11 +71,11 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   }
 
   async function loadAlerts() {
-    if (!userId) return;
+    if (!user) return;
     const { data } = await supabase
       .from('price_alerts')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .eq('symbol', symbol)
       .order('created_at', { ascending: false });
 
@@ -82,6 +83,8 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   }
 
   const loadTickerData = useCallback(async () => {
+    if (!user) return;
+
     try {
       const [candlesData, quoteData] = await Promise.all([
         getDailyOHLC(symbol),
@@ -99,9 +102,9 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
       setPattern(patternResult);
       setSignal(signalResult);
 
-      if (userId && channelResult.hasChannel) {
+      if (channelResult.hasChannel) {
         const { error: upsertError } = await supabase.from('combined_signals').upsert({
-          user_id: userId,
+          user_id: user.id,
           symbol,
           timeframe: '1d',
           detected_at: new Date().toISOString().split('T')[0],
@@ -122,13 +125,11 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
         }
       }
 
-      if (userId) {
-        await Promise.all([
-          loadNotes(),
-          loadUploads(),
-          loadAlerts(),
-        ]);
-      }
+      await Promise.all([
+        loadNotes(),
+        loadUploads(),
+        loadAlerts(),
+      ]);
     } catch (error) {
       console.error('Error loading ticker data:', error);
       toast({
@@ -139,32 +140,22 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
     } finally {
       setLoading(false);
     }
-  }, [symbol, userId, toast]);
-
-  async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
-    setUserId(effectiveUserId);
-  }
+  }, [symbol, user, toast]);
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
+    if (user) {
       loadTickerData();
     }
-  }, [userId, loadTickerData]);
+  }, [user, loadTickerData]);
 
   async function addNote() {
-    if (!newNoteTitle.trim() || !userId) return;
+    if (!newNoteTitle.trim() || !user) return;
 
     try {
       const { data, error } = await supabase
         .from('ticker_notes')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           symbol,
           title: newNoteTitle,
           body: newNoteBody,
@@ -215,7 +206,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   }
 
   async function addAlert() {
-    if (!newAlertPrice || !userId) return;
+    if (!newAlertPrice || !user) return;
 
     const price = parseFloat(newAlertPrice);
     if (isNaN(price) || price <= 0) {
@@ -231,7 +222,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
       const { data, error } = await supabase
         .from('price_alerts')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           symbol,
           target_price: price,
           direction: newAlertDirection,

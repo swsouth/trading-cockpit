@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, X, TrendingUp, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/AuthContext';
 
 export function WatchlistDashboard() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -18,18 +19,14 @@ export function WatchlistDashboard() {
   const [newSymbol, setNewSymbol] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
+    if (user) {
       loadWatchlist();
     }
-  }, [userId]);
+  }, [user]);
 
   useEffect(() => {
     if (watchlist.length > 0) {
@@ -37,32 +34,14 @@ export function WatchlistDashboard() {
     }
   }, [watchlist]);
 
-  async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
-    setUserId(effectiveUserId);
-
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!profile) {
-        await supabase.from('profiles').insert({ id: user.id });
-      }
-    }
-  }
-
   async function loadWatchlist() {
-    if (!userId) return;
+    if (!user) return;
 
     try {
       const { data, error } = await supabase
         .from('watchlist_items')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -107,13 +86,13 @@ export function WatchlistDashboard() {
   }
 
   async function addToWatchlist() {
-    if (!newSymbol.trim() || !userId) return;
+    if (!newSymbol.trim() || !user) return;
 
     try {
       const { data, error } = await supabase
         .from('watchlist_items')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           symbol: newSymbol.toUpperCase(),
           display_name: newDisplayName || null,
         })

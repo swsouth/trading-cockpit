@@ -9,12 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Upload as UploadIcon, FileText, Filter, X } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 export function ResearchLibrary() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [filteredUploads, setFilteredUploads] = useState<Upload[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [symbols, setSymbols] = useState('');
@@ -28,25 +29,15 @@ export function ResearchLibrary() {
   const { toast } = useToast();
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
+    if (user) {
       loadUploads();
     }
-  }, [userId]);
+    setLoading(false);
+  }, [user]);
 
   useEffect(() => {
     applyFilters();
   }, [uploads, filterSymbol, filterTag]);
-
-  async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const effectiveUserId = user?.id || '00000000-0000-0000-0000-000000000000';
-    setUserId(effectiveUserId);
-    setLoading(false);
-  }
 
   async function loadUploads() {
     try {
@@ -83,13 +74,13 @@ export function ResearchLibrary() {
   }
 
   async function handleUpload() {
-    if (!selectedFile || !userId) return;
+    if (!selectedFile || !user) return;
 
     setUploading(true);
 
     try {
       const timestamp = Date.now();
-      const filePath = `${userId}/${timestamp}-${selectedFile.name}`;
+      const filePath = `${user.id}/${timestamp}-${selectedFile.name}`;
 
       const { error: uploadError } = await supabase.storage
         .from('research-files')
@@ -110,7 +101,7 @@ export function ResearchLibrary() {
       const { data, error: dbError } = await supabase
         .from('uploads')
         .insert({
-          user_id: userId,
+          user_id: user.id,
           storage_path: filePath,
           filename: selectedFile.name,
           symbols: symbolsArray,
