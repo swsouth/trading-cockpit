@@ -118,3 +118,110 @@ export type Profile = {
   display_name: string | null;
   settings: Record<string, any>;
 };
+
+// Scanner Types
+export type RecommendedAction =
+  | 'BUY'
+  | 'SELL'
+  | 'SHORT'
+  | 'BUY_BREAKOUT'
+  | 'WAIT';
+
+export type ConfidenceLevel = 'LOW' | 'MODERATE' | 'HIGH';
+
+export type TradingAction = {
+  recommendation: RecommendedAction;
+  entry: {
+    type: 'market' | 'limit' | 'stop';
+    price: number;
+    range: { low: number; high: number };
+  } | null;
+  target: {
+    primary: number;      // Conservative target
+    secondary: number | null;  // Aggressive target
+    rationale: string;
+  } | null;
+  stopLoss: {
+    price: number;
+    rationale: string;
+  } | null;
+  riskReward: number | null;
+  confidence: ConfidenceLevel;
+  reasoning: string[];
+  cautions: string[];
+  setup: string; // "Support Bounce", "Resistance Rejection", "Breakout", etc.
+};
+
+export type ScanResult = {
+  watchlistItem: WatchlistItem;
+  quote: Quote;
+  channel: ChannelDetectionResult;
+  pattern: PatternDetectionResult;
+  signal: CombinedSignal;
+  action: TradingAction;
+  scannedAt: string;
+};
+
+export type ScanCriteria = {
+  signalBias?: 'bullish' | 'bearish' | 'neutral';
+  patterns?: DetectedPattern[];
+  channelStatus?: ChannelStatus[];
+  recommendedActions?: RecommendedAction[];
+  minRiskReward?: number;
+  confidenceLevels?: ConfidenceLevel[];
+  minVolume?: number;
+  priceChangeMin?: number;
+  priceChangeMax?: number;
+};
+
+export type MarketOpportunity = {
+  id: string;
+  user_id: string | null; // Nullable for market-wide scans (future)
+  symbol: string;
+  scanned_at: string;
+
+  // Price data
+  price: number;
+  change_percent: number | null;
+  volume: number | null;
+
+  // Technical analysis
+  has_channel: boolean;
+  channel_status: ChannelStatus | null;
+  support: number | null;
+  resistance: number | null;
+  mid_channel: number | null;
+  channel_width_pct: number | null;
+  support_touches: number | null;
+  resistance_touches: number | null;
+
+  pattern: DetectedPattern | null;
+  bias: 'bullish' | 'bearish' | 'neutral' | 'conflicting';
+  notes: string[];
+  cautions: string[];
+
+  // Trading action
+  recommended_action: RecommendedAction;
+  entry_price: number | null;
+  entry_range_low: number | null;
+  entry_range_high: number | null;
+  entry_type: 'market' | 'limit' | 'stop' | null;
+
+  target_price_1: number | null;
+  target_price_2: number | null;
+  stop_loss: number | null;
+
+  potential_gain_1_pct: number | null;
+  potential_gain_2_pct: number | null;
+  potential_loss_pct: number | null;
+
+  risk_reward_ratio: number | null;
+
+  confidence: ConfidenceLevel;
+  confidence_score: number | null;
+  reasoning: string[];
+
+  setup: string | null;
+
+  created_at: string;
+};
