@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 import { scanWatchlist, applyScanCriteria, sortScanResults, getScanStats } from '@/lib/scanner';
 import { WatchlistItem, ScanCriteria } from '@/lib/types';
 
@@ -16,7 +17,28 @@ import { WatchlistItem, ScanCriteria } from '@/lib/types';
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    // Create Supabase client with cookies for authentication
+    const cookieStore = cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    // Get all cookies and format as cookie header
+    const allCookies = cookieStore.getAll();
+    const cookieString = allCookies
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join('; ');
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          cookie: cookieString,
+        },
+      },
+    });
 
     // Get authenticated user
     const {
@@ -104,7 +126,28 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    // Create Supabase client with cookies for authentication
+    const cookieStore = cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    // Get all cookies and format as cookie header
+    const allCookies = cookieStore.getAll();
+    const cookieString = allCookies
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join('; ');
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          cookie: cookieString,
+        },
+      },
+    });
 
     // Get authenticated user
     const {
