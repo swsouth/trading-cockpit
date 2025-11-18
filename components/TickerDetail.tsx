@@ -31,6 +31,64 @@ interface TickerDetailProps {
   symbol: string;
 }
 
+// Helper function to classify pattern significance
+function getPatternSignificance(pattern: string): {
+  type: 'reversal' | 'continuation' | 'indecision';
+  description: string;
+  color: string;
+} {
+  switch (pattern) {
+    case 'bullish_engulfing':
+      return {
+        type: 'reversal',
+        description: 'Bullish reversal - potential upward trend change',
+        color: 'bg-emerald-100 text-emerald-700',
+      };
+    case 'bearish_engulfing':
+      return {
+        type: 'reversal',
+        description: 'Bearish reversal - potential downward trend change',
+        color: 'bg-red-100 text-red-700',
+      };
+    case 'hammer':
+      return {
+        type: 'reversal',
+        description: 'Bullish reversal - potential bottom formation',
+        color: 'bg-emerald-100 text-emerald-700',
+      };
+    case 'shooting_star':
+      return {
+        type: 'reversal',
+        description: 'Bearish reversal - potential top formation',
+        color: 'bg-red-100 text-red-700',
+      };
+    case 'piercing_line':
+      return {
+        type: 'reversal',
+        description: 'Bullish reversal - potential upward momentum',
+        color: 'bg-emerald-100 text-emerald-700',
+      };
+    case 'dark_cloud_cover':
+      return {
+        type: 'reversal',
+        description: 'Bearish reversal - potential downward momentum',
+        color: 'bg-red-100 text-red-700',
+      };
+    case 'doji':
+      return {
+        type: 'indecision',
+        description: 'Indecision - balance between buyers and sellers',
+        color: 'bg-amber-100 text-amber-700',
+      };
+    default:
+      return {
+        type: 'indecision',
+        description: 'No pattern detected',
+        color: 'bg-slate-100 text-slate-700',
+      };
+  }
+}
+
 export function TickerDetail({ symbol }: TickerDetailProps) {
   const { user } = useAuth();
   const [assetType, setAssetType] = useState<'stock' | 'crypto'>('stock');
@@ -512,14 +570,27 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
               <CardHeader>
                 <CardTitle>Pattern Detection</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 {pattern && pattern.mainPattern !== 'none' ? (
-                  <div>
-                    <p className="text-sm text-slate-600 mb-1">Detected Pattern</p>
-                    <p className="text-lg font-semibold text-slate-900 capitalize">
-                      {pattern.mainPattern.replace(/_/g, ' ')}
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <p className="text-sm text-slate-600 mb-2">Detected Pattern</p>
+                      <p className="text-lg font-semibold text-slate-900 capitalize">
+                        {pattern.mainPattern.replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600 mb-2">Significance</p>
+                      <div className="space-y-2">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase ${getPatternSignificance(pattern.mainPattern).color}`}>
+                          {getPatternSignificance(pattern.mainPattern).type}
+                        </span>
+                        <p className="text-sm text-slate-600">
+                          {getPatternSignificance(pattern.mainPattern).description}
+                        </p>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <p className="text-sm text-slate-500 italic">
                     No pattern detected
