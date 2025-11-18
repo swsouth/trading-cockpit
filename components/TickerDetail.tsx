@@ -111,43 +111,36 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
       setCandles(candlesData);
       setQuote(quoteData);
 
-      // Only run channel/pattern analysis for stocks
-      if (itemAssetType === 'stock') {
-        const channelResult = detectChannel(candlesData);
-        const patternResult = detectPatterns(candlesData);
-        const signalResult = computeCombinedSignal(channelResult, patternResult, candlesData);
+      // Run channel/pattern analysis for all asset types
+      const channelResult = detectChannel(candlesData);
+      const patternResult = detectPatterns(candlesData);
+      const signalResult = computeCombinedSignal(channelResult, patternResult, candlesData);
 
-        setChannel(channelResult);
-        setPattern(patternResult);
-        setSignal(signalResult);
+      setChannel(channelResult);
+      setPattern(patternResult);
+      setSignal(signalResult);
 
-        if (channelResult.hasChannel) {
-          const { error: upsertError } = await supabase.from('combined_signals').upsert({
-            user_id: user.id,
-            symbol,
-            timeframe: '1d',
-            detected_at: new Date().toISOString().split('T')[0],
-            bias: signalResult.bias,
-            channel_status: channelResult.status,
-            main_pattern: patternResult.mainPattern,
-            notes: signalResult.notes,
-            cautions: signalResult.cautions,
+      if (channelResult.hasChannel) {
+        const { error: upsertError } = await supabase.from('combined_signals').upsert({
+          user_id: user.id,
+          symbol,
+          timeframe: '1d',
+          detected_at: new Date().toISOString().split('T')[0],
+          bias: signalResult.bias,
+          channel_status: channelResult.status,
+          main_pattern: patternResult.mainPattern,
+          notes: signalResult.notes,
+          cautions: signalResult.cautions,
+        });
+
+        if (upsertError) {
+          console.error('Failed to save signal:', upsertError);
+          toast({
+            title: 'Warning',
+            description: 'Failed to save analysis signal to database',
+            variant: 'destructive',
           });
-
-          if (upsertError) {
-            console.error('Failed to save signal:', upsertError);
-            toast({
-              title: 'Warning',
-              description: 'Failed to save analysis signal to database',
-              variant: 'destructive',
-            });
-          }
         }
-      } else {
-        // Clear analysis for crypto
-        setChannel(null);
-        setPattern(null);
-        setSignal(null);
       }
 
       await Promise.all([
@@ -482,11 +475,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
                 <CardTitle>Channel Detection</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {assetType === 'crypto' ? (
-                  <p className="text-sm text-slate-500 italic">
-                    Channel analysis is not available for cryptocurrency
-                  </p>
-                ) : channel && channel.hasChannel ? (
+                {channel && channel.hasChannel ? (
                   <>
                     <div>
                       <p className="text-sm text-slate-600">Support</p>
@@ -524,11 +513,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
                 <CardTitle>Pattern Detection</CardTitle>
               </CardHeader>
               <CardContent>
-                {assetType === 'crypto' ? (
-                  <p className="text-sm text-slate-500 italic">
-                    Pattern analysis is not available for cryptocurrency
-                  </p>
-                ) : pattern && pattern.mainPattern !== 'none' ? (
+                {pattern && pattern.mainPattern !== 'none' ? (
                   <div>
                     <p className="text-sm text-slate-600 mb-1">Detected Pattern</p>
                     <p className="text-lg font-semibold text-slate-900 capitalize">
@@ -548,11 +533,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
                 <CardTitle>Signal Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {assetType === 'crypto' ? (
-                  <p className="text-sm text-slate-500 italic">
-                    Signal analysis is not available for cryptocurrency
-                  </p>
-                ) : signal ? (
+                {signal ? (
                   <>
                     <div>
                       <p className="text-sm text-slate-600 mb-2">Bias</p>
