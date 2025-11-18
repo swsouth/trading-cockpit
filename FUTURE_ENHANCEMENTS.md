@@ -189,9 +189,16 @@ Update database
 
 ## Market Scanner with Predictive Trading Actions
 
-**Status:** Future consideration
-**Priority:** High value feature
-**Estimated effort:** 10-20 hours depending on approach
+**🚀 HIGH PRIORITY - MAJOR MONETIZATION OPPORTUNITY 🚀**
+
+**Status:** Future consideration - TOP PRIORITY
+**Priority:** ⭐⭐⭐⭐⭐ CRITICAL - High value feature with real marketability
+**Estimated effort:** 10-20 hours MVP, 20-28 hours complete
+**Detailed Spec:** See `MARKET_SCANNER_SPEC.md` for full implementation details
+
+> **User feedback:** "This is definitely a feature that has real power and marketability. Could be something big!"
+
+**Revenue Potential:** $6K-$122K/month depending on user adoption (see detailed spec)
 
 ### Concept
 
