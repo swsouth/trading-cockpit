@@ -171,18 +171,19 @@ export function WatchlistDashboard() {
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Watchlist Dashboard</h1>
-          <p className="text-slate-600">Monitor your tracked symbols and market signals</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Watchlist Dashboard</h1>
+          <p className="text-sm sm:text-base text-slate-600">Monitor your tracked symbols and market signals</p>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-6">
           <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             onClick={() => setFilter('all')}
+            size="sm"
             className={filter === 'all' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
           >
             All ({watchlist.length})
@@ -190,18 +191,20 @@ export function WatchlistDashboard() {
           <Button
             variant={filter === 'stocks' ? 'default' : 'outline'}
             onClick={() => setFilter('stocks')}
+            size="sm"
             className={filter === 'stocks' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
           >
-            <TrendingUpIcon className="h-4 w-4 mr-2" />
-            Stocks ({watchlist.filter(i => i.asset_type === 'stock').length})
+            <TrendingUpIcon className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">Stocks </span>({watchlist.filter(i => i.asset_type === 'stock').length})
           </Button>
           <Button
             variant={filter === 'crypto' ? 'default' : 'outline'}
             onClick={() => setFilter('crypto')}
+            size="sm"
             className={filter === 'crypto' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
           >
-            <Bitcoin className="h-4 w-4 mr-2" />
-            Crypto ({watchlist.filter(i => i.asset_type === 'crypto').length})
+            <Bitcoin className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">Crypto </span>({watchlist.filter(i => i.asset_type === 'crypto').length})
           </Button>
         </div>
 
@@ -210,27 +213,27 @@ export function WatchlistDashboard() {
             <CardTitle>Add Symbol</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Input
                 placeholder="Symbol (e.g., AAPL or BTC)"
                 value={newSymbol}
                 onChange={(e) => setNewSymbol(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addToWatchlist()}
-                className="max-w-xs"
+                className="sm:max-w-xs"
               />
               <Input
                 placeholder="Display name (optional)"
                 value={newDisplayName}
                 onChange={(e) => setNewDisplayName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addToWatchlist()}
-                className="max-w-xs"
+                className="sm:max-w-xs"
               />
               <div className="flex gap-2">
                 <Button
                   variant={newAssetType === 'stock' ? 'default' : 'outline'}
                   onClick={() => setNewAssetType('stock')}
                   size="sm"
-                  className={newAssetType === 'stock' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                  className={`flex-1 sm:flex-none ${newAssetType === 'stock' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
                 >
                   Stock
                 </Button>
@@ -238,12 +241,12 @@ export function WatchlistDashboard() {
                   variant={newAssetType === 'crypto' ? 'default' : 'outline'}
                   onClick={() => setNewAssetType('crypto')}
                   size="sm"
-                  className={newAssetType === 'crypto' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                  className={`flex-1 sm:flex-none ${newAssetType === 'crypto' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
                 >
                   Crypto
                 </Button>
               </div>
-              <Button onClick={addToWatchlist}>
+              <Button onClick={addToWatchlist} className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 Add to Watchlist
               </Button>
@@ -267,13 +270,13 @@ export function WatchlistDashboard() {
 
               return (
                 <Card key={item.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <Link
                             href={`/ticker/${item.symbol}`}
-                            className="text-2xl font-bold text-slate-900 hover:text-emerald-600 transition-colors"
+                            className="text-xl sm:text-2xl font-bold text-slate-900 hover:text-emerald-600 transition-colors"
                           >
                             {item.symbol}
                           </Link>
@@ -287,40 +290,42 @@ export function WatchlistDashboard() {
                             {item.asset_type === 'crypto' ? 'CRYPTO' : 'STOCK'}
                           </span>
                           {item.display_name && (
-                            <span className="text-sm text-slate-500">{item.display_name}</span>
+                            <span className="text-sm text-slate-500 truncate">{item.display_name}</span>
                           )}
                         </div>
 
                         {quote && (
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="text-3xl font-semibold text-slate-900">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
+                            <div className="text-2xl sm:text-3xl font-semibold text-slate-900">
                               ${quote.price.toFixed(2)}
                             </div>
-                            <div
-                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                                quote.changePercent >= 0
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-red-100 text-red-700'
-                              }`}
-                            >
-                              {quote.changePercent >= 0 ? (
-                                <TrendingUp className="h-4 w-4" />
-                              ) : (
-                                <TrendingDown className="h-4 w-4" />
-                              )}
-                              {quote.changePercent >= 0 ? '+' : ''}
-                              {quote.changePercent.toFixed(2)}%
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div
+                                className={`flex items-center gap-1 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+                                  quote.changePercent >= 0
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-red-100 text-red-700'
+                                }`}
+                              >
+                                {quote.changePercent >= 0 ? (
+                                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+                                ) : (
+                                  <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4" />
+                                )}
+                                {quote.changePercent >= 0 ? '+' : ''}
+                                {quote.changePercent.toFixed(2)}%
+                              </div>
+                              <span className="text-xs text-slate-500">
+                                Updated {formatDistanceToNow(new Date(quote.timestamp), { addSuffix: true })}
+                              </span>
                             </div>
-                            <span className="text-xs text-slate-500">
-                              Updated {formatDistanceToNow(new Date(quote.timestamp), { addSuffix: true })}
-                            </span>
                           </div>
                         )}
 
                         {signal && (
-                          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-sm font-medium text-slate-700">Latest Signal:</span>
+                          <div className="bg-slate-50 rounded-lg p-3 sm:p-4 border border-slate-200">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className="text-xs sm:text-sm font-medium text-slate-700">Latest Signal:</span>
                               <span
                                 className={`px-2 py-1 rounded text-xs font-semibold ${
                                   signal.bias === 'bullish'
@@ -333,7 +338,7 @@ export function WatchlistDashboard() {
                                 {signal.bias.toUpperCase()}
                               </span>
                             </div>
-                            <div className="text-sm text-slate-600">
+                            <div className="text-xs sm:text-sm text-slate-600">
                               Channel: <span className="font-medium">{signal.channel_status.replace('_', ' ')}</span>
                               {signal.main_pattern && signal.main_pattern !== 'none' && (
                                 <>
@@ -350,9 +355,9 @@ export function WatchlistDashboard() {
                         variant="ghost"
                         size="icon"
                         onClick={() => removeFromWatchlist(item.id)}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-slate-400 hover:text-red-600 flex-shrink-0"
                       >
-                        <X className="h-5 w-5" />
+                        <X className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Button>
                     </div>
                   </CardContent>

@@ -367,23 +367,23 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link href="/" className="inline-flex items-center text-emerald-600 hover:text-emerald-700 mb-4">
+        <div className="mb-4 sm:mb-6">
+          <Link href="/" className="inline-flex items-center text-emerald-600 hover:text-emerald-700 mb-4 text-sm sm:text-base">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-4">
-              <h1 className="text-4xl font-bold text-slate-900">{symbol}</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900">{symbol}</h1>
               {quote && (
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl font-semibold text-slate-900">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-900">
                     ${quote.price.toFixed(2)}
                   </span>
                   <span
-                    className={`text-lg font-medium ${
+                    className={`text-base sm:text-lg font-medium ${
                       quote.changePercent >= 0 ? 'text-emerald-600' : 'text-red-600'
                     }`}
                   >
@@ -393,9 +393,9 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
               {lastUpdated && (
-                <span className="text-sm text-slate-500">
+                <span className="text-xs sm:text-sm text-slate-500">
                   Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
                 </span>
               )}
@@ -404,6 +404,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
                 disabled={refreshing}
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -412,7 +413,7 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>

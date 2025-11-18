@@ -4,12 +4,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { Sidebar } from '@/components/Sidebar';
 import { PriceAlertChecker } from '@/components/PriceAlertChecker';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Check if we're on an auth page
   const isAuthPage = pathname?.startsWith('/auth');
@@ -46,10 +49,27 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   // Main app layout with sidebar
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile header with hamburger menu */}
+        <header className="lg:hidden bg-white border-b border-slate-200 px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        </header>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+
       <PriceAlertChecker />
     </div>
   );

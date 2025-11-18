@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Library, Settings, TrendingUp, LogOut, User } from 'lucide-react';
+import { BarChart3, Library, Settings, TrendingUp, LogOut, User, X } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 
@@ -12,16 +12,46 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
 
   return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col">
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        w-64 bg-slate-900 text-white flex flex-col
+        transform transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
       <div className="p-6 border-b border-slate-700">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-8 w-8 text-emerald-400" />
-          <h1 className="text-xl font-bold">Trading Cockpit</h1>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-8 w-8 text-emerald-400" />
+            <h1 className="text-xl font-bold">Trading Cockpit</h1>
+          </div>
+          {/* Close button for mobile */}
+          <button
+            onClick={onClose}
+            className="lg:hidden text-slate-400 hover:text-white"
+            aria-label="Close menu"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
       </div>
 
@@ -36,6 +66,7 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onClose}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-emerald-600 text-white'
@@ -68,5 +99,6 @@ export function Sidebar() {
         </Button>
       </div>
     </aside>
+    </>
   );
 }
