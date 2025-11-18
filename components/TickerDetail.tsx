@@ -477,105 +477,133 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
           </div>
 
           <div className="space-y-6">
-            {channel && channel.hasChannel && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Channel Detection</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-slate-600">Support</p>
-                    <p className="text-lg font-semibold text-slate-900">${channel.support.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Resistance</p>
-                    <p className="text-lg font-semibold text-slate-900">${channel.resistance.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Width</p>
-                    <p className="text-lg font-semibold text-slate-900">{(channel.widthPct * 100).toFixed(2)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Status</p>
-                    <p className="text-lg font-semibold text-slate-900 capitalize">
-                      {channel.status.replace('_', ' ')}
-                    </p>
-                  </div>
-                  <div className="text-xs text-slate-500 pt-2 border-t">
-                    <p>Support touches: {channel.supportTouches}</p>
-                    <p>Resistance touches: {channel.resistanceTouches}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            <Card>
+              <CardHeader>
+                <CardTitle>Channel Detection</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {assetType === 'crypto' ? (
+                  <p className="text-sm text-slate-500 italic">
+                    Channel analysis is not available for cryptocurrency
+                  </p>
+                ) : channel && channel.hasChannel ? (
+                  <>
+                    <div>
+                      <p className="text-sm text-slate-600">Support</p>
+                      <p className="text-lg font-semibold text-slate-900">${channel.support.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Resistance</p>
+                      <p className="text-lg font-semibold text-slate-900">${channel.resistance.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Width</p>
+                      <p className="text-lg font-semibold text-slate-900">{(channel.widthPct * 100).toFixed(2)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Status</p>
+                      <p className="text-lg font-semibold text-slate-900 capitalize">
+                        {channel.status.replace('_', ' ')}
+                      </p>
+                    </div>
+                    <div className="text-xs text-slate-500 pt-2 border-t">
+                      <p>Support touches: {channel.supportTouches}</p>
+                      <p>Resistance touches: {channel.resistanceTouches}</p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">
+                    No channel detected
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-            {pattern && pattern.mainPattern !== 'none' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Pattern Detection</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle>Pattern Detection</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {assetType === 'crypto' ? (
+                  <p className="text-sm text-slate-500 italic">
+                    Pattern analysis is not available for cryptocurrency
+                  </p>
+                ) : pattern && pattern.mainPattern !== 'none' ? (
                   <div>
                     <p className="text-sm text-slate-600 mb-1">Detected Pattern</p>
                     <p className="text-lg font-semibold text-slate-900 capitalize">
                       {pattern.mainPattern.replace(/_/g, ' ')}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="text-sm text-slate-500 italic">
+                    No pattern detected
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-            {signal && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Signal Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-sm text-slate-600 mb-2">Bias</p>
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                        signal.bias === 'bullish'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : signal.bias === 'bearish'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {signal.bias.toUpperCase()}
-                    </span>
-                  </div>
-
-                  {signal.notes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Signal Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {assetType === 'crypto' ? (
+                  <p className="text-sm text-slate-500 italic">
+                    Signal analysis is not available for cryptocurrency
+                  </p>
+                ) : signal ? (
+                  <>
                     <div>
-                      <p className="text-sm font-medium text-slate-700 mb-2">Notes</p>
-                      <ul className="space-y-1">
-                        {signal.notes.map((note, i) => (
-                          <li key={i} className="text-sm text-slate-600 flex gap-2">
-                            <span className="text-emerald-600">•</span>
-                            <span>{note}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="text-sm text-slate-600 mb-2">Bias</p>
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                          signal.bias === 'bullish'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : signal.bias === 'bearish'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {signal.bias.toUpperCase()}
+                      </span>
                     </div>
-                  )}
 
-                  {signal.cautions.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-slate-700 mb-2">Cautions</p>
-                      <ul className="space-y-1">
-                        {signal.cautions.map((caution, i) => (
-                          <li key={i} className="text-sm text-slate-600 flex gap-2">
-                            <span className="text-amber-600">⚠</span>
-                            <span>{caution}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                    {signal.notes.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-slate-700 mb-2">Notes</p>
+                        <ul className="space-y-1">
+                          {signal.notes.map((note, i) => (
+                            <li key={i} className="text-sm text-slate-600 flex gap-2">
+                              <span className="text-emerald-600">•</span>
+                              <span>{note}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {signal.cautions.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-slate-700 mb-2">Cautions</p>
+                        <ul className="space-y-1">
+                          {signal.cautions.map((caution, i) => (
+                            <li key={i} className="text-sm text-slate-600 flex gap-2">
+                              <span className="text-amber-600">⚠</span>
+                              <span>{caution}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">
+                    No signal data available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
