@@ -1,0 +1,227 @@
+export type Candle = {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
+
+export type Quote = {
+  symbol: string;
+  price: number;
+  changePercent: number;
+  open: number;
+  high: number;
+  low: number;
+  previousClose: number;
+  volume?: number;
+  timestamp: string;
+};
+
+export type ChannelStatus =
+  | 'near_support'
+  | 'near_resistance'
+  | 'inside'
+  | 'broken_out';
+
+export type DetectedPattern =
+  | 'bullish_engulfing'
+  | 'bearish_engulfing'
+  | 'hammer'
+  | 'shooting_star'
+  | 'doji'
+  | 'piercing_line'
+  | 'dark_cloud_cover'
+  | 'none';
+
+export type ChannelDetectionResult = {
+  hasChannel: boolean;
+  support: number;
+  resistance: number;
+  mid: number;
+  widthPct: number;
+  supportTouches: number;
+  resistanceTouches: number;
+  outOfBandPct: number;
+  status: ChannelStatus;
+};
+
+export type PatternDetectionResult = {
+  mainPattern: DetectedPattern;
+};
+
+export type CombinedSignal = {
+  bias: 'bullish' | 'bearish' | 'neutral' | 'conflicting';
+  notes: string[];
+  cautions: string[];
+};
+
+export type WatchlistItem = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  display_name: string | null;
+  asset_type: 'stock' | 'crypto';
+  created_at: string;
+};
+
+export type TickerNote = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  title: string | null;
+  body: string | null;
+  timeframe: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Upload = {
+  id: string;
+  user_id: string;
+  storage_path: string;
+  filename: string;
+  symbols: string[];
+  tags: string[];
+  note: string | null;
+  uploaded_at: string;
+};
+
+export type PriceAlert = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  target_price: number;
+  direction: 'above' | 'below';
+  is_active: boolean;
+  created_at: string;
+  triggered_at: string | null;
+};
+
+export type CombinedSignalRecord = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  timeframe: string;
+  detected_at: string;
+  bias: 'bullish' | 'bearish' | 'neutral' | 'conflicting';
+  channel_status: ChannelStatus;
+  main_pattern: string | null;
+  notes: string[];
+  cautions: string[];
+};
+
+export type Profile = {
+  id: string;
+  created_at: string;
+  display_name: string | null;
+  settings: Record<string, any>;
+};
+
+// Scanner Types
+export type RecommendedAction =
+  | 'BUY'
+  | 'SELL'
+  | 'SHORT'
+  | 'BUY_BREAKOUT'
+  | 'WAIT';
+
+export type ConfidenceLevel = 'LOW' | 'MODERATE' | 'HIGH';
+
+export type TradingAction = {
+  recommendation: RecommendedAction;
+  entry: {
+    type: 'market' | 'limit' | 'stop';
+    price: number;
+    range: { low: number; high: number };
+  } | null;
+  target: {
+    primary: number;      // Conservative target
+    secondary: number | null;  // Aggressive target
+    rationale: string;
+  } | null;
+  stopLoss: {
+    price: number;
+    rationale: string;
+  } | null;
+  riskReward: number | null;
+  confidence: ConfidenceLevel;
+  reasoning: string[];
+  cautions: string[];
+  setup: string; // "Support Bounce", "Resistance Rejection", "Breakout", etc.
+};
+
+export type ScanResult = {
+  watchlistItem: WatchlistItem;
+  quote: Quote;
+  channel: ChannelDetectionResult;
+  pattern: PatternDetectionResult;
+  signal: CombinedSignal;
+  action: TradingAction;
+  scannedAt: string;
+};
+
+export type ScanCriteria = {
+  signalBias?: 'bullish' | 'bearish' | 'neutral';
+  patterns?: DetectedPattern[];
+  channelStatus?: ChannelStatus[];
+  recommendedActions?: RecommendedAction[];
+  minRiskReward?: number;
+  confidenceLevels?: ConfidenceLevel[];
+  minVolume?: number;
+  priceChangeMin?: number;
+  priceChangeMax?: number;
+};
+
+export type MarketOpportunity = {
+  id: string;
+  user_id: string | null; // Nullable for market-wide scans (future)
+  symbol: string;
+  scanned_at: string;
+
+  // Price data
+  price: number;
+  change_percent: number | null;
+  volume: number | null;
+
+  // Technical analysis
+  has_channel: boolean;
+  channel_status: ChannelStatus | null;
+  support: number | null;
+  resistance: number | null;
+  mid_channel: number | null;
+  channel_width_pct: number | null;
+  support_touches: number | null;
+  resistance_touches: number | null;
+
+  pattern: DetectedPattern | null;
+  bias: 'bullish' | 'bearish' | 'neutral' | 'conflicting';
+  notes: string[];
+  cautions: string[];
+
+  // Trading action
+  recommended_action: RecommendedAction;
+  entry_price: number | null;
+  entry_range_low: number | null;
+  entry_range_high: number | null;
+  entry_type: 'market' | 'limit' | 'stop' | null;
+
+  target_price_1: number | null;
+  target_price_2: number | null;
+  stop_loss: number | null;
+
+  potential_gain_1_pct: number | null;
+  potential_gain_2_pct: number | null;
+  potential_loss_pct: number | null;
+
+  risk_reward_ratio: number | null;
+
+  confidence: ConfidenceLevel;
+  confidence_score: number | null;
+  reasoning: string[];
+
+  setup: string | null;
+
+  created_at: string;
+};
