@@ -225,3 +225,54 @@ export type MarketOpportunity = {
 
   created_at: string;
 };
+
+export type TradeRecommendation = {
+  id: string;
+  symbol: string;
+  scan_date: string;
+
+  // Trade Details
+  recommendation_type: 'long' | 'short';
+  setup_type: string; // "Support Bounce", "Resistance Rejection", "Breakout", etc.
+  timeframe: string;
+
+  // Entry/Exit/Stop
+  entry_price: number;
+  target_price: number;
+  stop_loss: number;
+
+  // Risk/Reward Metrics
+  risk_amount: number;
+  reward_amount: number;
+  risk_reward_ratio: number;
+
+  // Scoring
+  opportunity_score: number; // 0-100
+  confidence_level: 'high' | 'medium' | 'low';
+
+  // Technical Context
+  current_price: number;
+  channel_status: string | null;
+  pattern_detected: string | null;
+  volume_status: string | null;
+  rsi: number | null;
+  trend: string | null;
+
+  // Fundamental Context
+  market_cap: number | null;
+  sector: string | null;
+
+  // Rationale & Context
+  rationale: string;
+  technical_summary: string | null;
+
+  // Tracking & Lifecycle
+  is_active: boolean;
+  outcome: 'hit_target' | 'hit_stop' | 'expired' | 'pending' | 'invalidated' | null;
+  outcome_price: number | null;
+  outcome_date: string | null;
+  created_at: string;
+  expires_at: string | null;
+  invalidated_at: string | null;
+  invalidation_reason: string | null;
+};

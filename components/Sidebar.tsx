@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Library, Settings, TrendingUp, LogOut, User, X, Search } from 'lucide-react';
+import { BarChart3, Library, Settings, TrendingUp, LogOut, User, X, Search, Target } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/scanner', label: 'Scanner', icon: Search },
+  { href: '/recommendations', label: 'Recommendations', icon: Target },
   { href: '/library', label: 'Library', icon: Library },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

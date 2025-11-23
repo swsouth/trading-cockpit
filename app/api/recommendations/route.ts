@@ -1,0 +1,133 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { TradeRecommendation } from '@/lib/types';
+
+/**
+ * GET /api/recommendations
+ *
+ * Fetch daily market-wide trade recommendations
+ *
+ * Query params (optional):
+ * - direction: 'long' | 'short'
+ * - confidenceLevel: 'LOW' | 'MODERATE' | 'HIGH'
+ * - minScore: number (0-100)
+ * - limit: number (default 30)
+ * - activeOnly: boolean (default true)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Get authorization header
+    const authHeader = request.headers.get('authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+
+    // Create Supabase client with the access token
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
+    // Get authenticated user using the provided token
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const recommendationType = searchParams.get('recommendationType') as 'long' | 'short' | null;
+    const confidenceLevel = searchParams.get('confidenceLevel') as 'low' | 'medium' | 'high' | null;
+    const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : 0;
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 30;
+    const activeOnly = searchParams.get('activeOnly') !== 'false'; // default true
+
+    // Build query
+    let query = supabase
+      .from('trade_recommendations')
+      .select('*')
+      .order('opportunity_score', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (activeOnly) {
+      query = query.eq('is_active', true);
+    }
+
+    if (recommendationType) {
+      query = query.eq('recommendation_type', recommendationType);
+    }
+
+    if (confidenceLevel) {
+      query = query.eq('confidence_level', confidenceLevel);
+    }
+
+    if (minScore > 0) {
+      query = query.gte('opportunity_score', minScore);
+    }
+
+    query = query.limit(limit);
+
+    // Execute query
+    const { data: recommendations, error: dbError } = await query;
+
+    if (dbError) {
+      console.error('Error fetching recommendations:', dbError);
+      return NextResponse.json(
+        { error: 'Failed to fetch recommendations' },
+        { status: 500 }
+      );
+    }
+
+    // Calculate stats
+    const stats = {
+      total: recommendations?.length || 0,
+      byType: {
+        long: recommendations?.filter(r => r.recommendation_type === 'long').length || 0,
+        short: recommendations?.filter(r => r.recommendation_type === 'short').length || 0,
+      },
+      byConfidence: {
+        high: recommendations?.filter(r => r.confidence_level === 'high').length || 0,
+        medium: recommendations?.filter(r => r.confidence_level === 'medium').length || 0,
+        low: recommendations?.filter(r => r.confidence_level === 'low').length || 0,
+      },
+      avgScore: recommendations && recommendations.length > 0
+        ? recommendations.reduce((sum, r) => sum + r.opportunity_score, 0) / recommendations.length
+        : 0,
+      avgRiskReward: recommendations && recommendations.length > 0
+        ? recommendations.reduce((sum, r) => sum + r.risk_reward_ratio, 0) / recommendations.length
+        : 0,
+    };
+
+    // Get the latest scan date
+    const latestScanDate = recommendations && recommendations.length > 0
+      ? recommendations[0].scan_date
+      : null;
+
+    return NextResponse.json({
+      recommendations: recommendations || [],
+      stats,
+      latestScanDate,
+    });
+  } catch (error) {
+    console.error('Error in recommendations API:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
