@@ -48,7 +48,7 @@ The daily market scanner:
 2. Click **Add a variable**
 3. Add:
    - **Key:** `SCAN_SECRET_KEY`
-   - **Value:** `6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99`
+   - **Value:** `[YOUR_GENERATED_SECRET_KEY]` (from your .env.local file)
    - **Scopes:** All (Production, Deploy Previews, Branch deploys)
    - **Contains secret values:** ✅ YES (check this box)
 4. Click **Create variable**
@@ -63,7 +63,7 @@ The daily market scanner:
 
    **Secret 1: SCAN_SECRET_KEY**
    - Name: `SCAN_SECRET_KEY`
-   - Value: `6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99`
+   - Value: `[YOUR_GENERATED_SECRET_KEY]` (from your .env.local file)
    - Click **Add secret**
 
    **Secret 2: SITE_URL**
@@ -121,7 +121,7 @@ The daily market scanner:
 ### Option 2: API Call (for testing)
 ```bash
 curl -X POST https://your-site.netlify.app/api/scan/trigger \
-  -H "Authorization: Bearer 6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99"
+  -H "Authorization: Bearer YOUR_SCAN_SECRET_KEY"
 ```
 
 ### Option 3: Add a Button to Admin UI
