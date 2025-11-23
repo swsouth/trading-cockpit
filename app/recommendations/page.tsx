@@ -42,6 +42,11 @@ export default function RecommendationsPage() {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
+      console.log('🔑 Session check:', {
+        hasSession: !!session,
+        error: sessionError?.message
+      });
+
       if (sessionError || !session) {
         throw new Error('Please log in to view recommendations');
       }
@@ -54,25 +59,40 @@ export default function RecommendationsPage() {
       params.append('activeOnly', 'true');
       params.append('limit', '30');
 
+      console.log('📡 Fetching:', `/api/recommendations?${params.toString()}`);
+
       const response = await fetch(`/api/recommendations?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
+      console.log('📥 Response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
+
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Authentication failed. Please log in again.');
         }
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
         throw new Error('Failed to fetch recommendations');
       }
 
       const data = await response.json();
+      console.log('✅ Data received:', {
+        recommendationsCount: data.recommendations?.length,
+        stats: data.stats
+      });
+
       setRecommendations(data.recommendations || []);
       setStats(data.stats || null);
       setLatestScanDate(data.latestScanDate || null);
     } catch (error) {
-      console.error('Error fetching recommendations:', error);
+      console.error('❌ Error fetching recommendations:', error);
       const message = error instanceof Error ? error.message : 'Failed to fetch recommendations. Please try again.';
       alert(message);
     } finally {
@@ -83,6 +103,7 @@ export default function RecommendationsPage() {
   // Fetch on mount and when filters change
   useEffect(() => {
     fetchRecommendations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendationTypeFilter, confidenceFilter, minScore]);
 
   return (

@@ -43,6 +43,12 @@ export async function GET(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser();
 
+    console.log('🔐 Auth check:', {
+      hasUser: !!user,
+      userEmail: user?.email,
+      authError: authError?.message
+    });
+
     if (authError || !user) {
       console.error('Auth error:', authError);
       return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
@@ -84,6 +90,12 @@ export async function GET(request: NextRequest) {
 
     // Execute query
     const { data: recommendations, error: dbError } = await query;
+
+    console.log('📊 Query results:', {
+      count: recommendations?.length || 0,
+      error: dbError,
+      filters: { recommendationType, confidenceLevel, minScore, activeOnly, limit }
+    });
 
     if (dbError) {
       console.error('Error fetching recommendations:', dbError);
