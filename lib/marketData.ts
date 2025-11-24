@@ -2,8 +2,8 @@ import { Candle, Quote } from './types';
 
 const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-const ALPHA_VANTAGE_API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
-const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
+const FMP_API_KEY = process.env.FMP_API_KEY;
+const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 
 // Simple in-memory cache to reduce API calls
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -63,58 +63,55 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
   }
 
   // If no API key, use mock data
-  if (!ALPHA_VANTAGE_API_KEY) {
-    console.warn('Alpha Vantage API key not configured, using mock data');
+  if (!FMP_API_KEY) {
+    console.warn('FMP API key not configured, using mock data');
     return generateMockCandles(symbol);
   }
 
   try {
-    // Alpha Vantage TIME_SERIES_DAILY endpoint
-    const url = `${ALPHA_VANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=compact&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    // FMP stable endpoint - historical-price-eod/full
+    // This endpoint provides complete OHLC + volume data
+    const url = `${FMP_BASE_URL}/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_API_KEY}`;
 
     const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Alpha Vantage API error: ${response.status}`);
+      throw new Error(`FMP API error: ${response.status}`);
     }
 
     const data = await response.json();
 
     // Check for API errors
-    if (data['Error Message']) {
-      console.warn(`Invalid symbol ${symbol}:`, data['Error Message']);
+    if (data['Error Message'] || data.error) {
+      console.warn(`Invalid symbol ${symbol}:`, data['Error Message'] || data.error);
       return generateMockCandles(symbol);
     }
 
-    if (data['Note']) {
-      console.warn('Alpha Vantage rate limit reached:', data['Note']);
-      return generateMockCandles(symbol);
-    }
-
-    const timeSeries = data['Time Series (Daily)'];
-    if (!timeSeries) {
+    // Stable endpoint returns array directly
+    if (!Array.isArray(data) || data.length === 0) {
       console.warn(`No data found for symbol ${symbol}, using mock data`);
       return generateMockCandles(symbol);
     }
 
-    // Convert Alpha Vantage format to our Candle format
-    const candles: Candle[] = Object.entries(timeSeries)
-      .map(([date, values]: [string, any]) => ({
-        timestamp: date,
-        open: parseFloat(parseFloat(values['1. open']).toFixed(2)),
-        high: parseFloat(parseFloat(values['2. high']).toFixed(2)),
-        low: parseFloat(parseFloat(values['3. low']).toFixed(2)),
-        close: parseFloat(parseFloat(values['4. close']).toFixed(2)),
-        volume: parseInt(values['5. volume']),
+    // Convert FMP format to our Candle format
+    // FMP returns newest first, so we reverse to get chronological order
+    const candles: Candle[] = data
+      .map((item: any) => ({
+        timestamp: item.date,
+        open: parseFloat(parseFloat(item.open).toFixed(2)),
+        high: parseFloat(parseFloat(item.high).toFixed(2)),
+        low: parseFloat(parseFloat(item.low).toFixed(2)),
+        close: parseFloat(parseFloat(item.close).toFixed(2)),
+        volume: parseInt(item.volume),
       }))
-      .sort((a, b) => a.timestamp.localeCompare(b.timestamp)); // Sort chronologically
+      .reverse(); // Reverse to get chronological order (oldest to newest)
 
     // Cache the results
     setCache(cacheKey, candles);
 
     return candles;
   } catch (error) {
-    console.error('Error fetching candles from Alpha Vantage:', error);
+    console.error('Error fetching candles from FMP:', error);
     console.warn('Falling back to mock data');
     return generateMockCandles(symbol);
   }

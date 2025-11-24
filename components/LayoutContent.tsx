@@ -14,15 +14,16 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Check if we're on an auth page
+  // Check if we're on an auth page or public page
   const isAuthPage = pathname?.startsWith('/auth');
+  const isHomePage = pathname === '/';
 
-  // Redirect to login if not authenticated and not on auth page
+  // Redirect to login if not authenticated and not on homepage or auth page
   useEffect(() => {
-    if (!loading && !user && !isAuthPage) {
+    if (!loading && !user && !isAuthPage && !isHomePage) {
       router.push('/auth/login');
     }
-  }, [user, loading, isAuthPage, router]);
+  }, [user, loading, isAuthPage, isHomePage, router]);
 
   // Show loading state
   if (loading) {
@@ -36,8 +37,13 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Auth pages have their own layout
+  // Auth pages have their own layout (no sidebar)
   if (isAuthPage) {
+    return <>{children}</>;
+  }
+
+  // Homepage for non-authenticated users (landing page, no sidebar)
+  if (isHomePage && !user) {
     return <>{children}</>;
   }
 

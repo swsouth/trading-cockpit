@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { TradeRecommendation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,14 +13,18 @@ import {
   ExternalLink,
   Calendar,
   TrendingUpIcon,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
+import TradingViewModal from './TradingViewModal';
 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
 }
 
 export function RecommendationCard({ recommendation }: RecommendationCardProps) {
+  const [isChartOpen, setIsChartOpen] = useState(false);
+
   const {
     symbol,
     setup_type,
@@ -81,7 +86,11 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 flex-wrap">
-              <CardTitle className="text-2xl font-bold">
+              <CardTitle
+                className="text-2xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                onClick={() => setIsChartOpen(true)}
+                title="Click to view chart"
+              >
                 {symbol}
               </CardTitle>
               <Badge className={getDirectionColor(recommendation_type)}>
@@ -213,14 +222,24 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
             <Calendar className="h-3 w-3" />
             <span>Scanned: {new Date(scan_date).toLocaleDateString()}</span>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/ticker/${symbol}`}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View Chart
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsChartOpen(true)}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            View Chart
           </Button>
         </div>
       </CardContent>
+
+      {/* TradingView Chart Modal */}
+      <TradingViewModal
+        symbol={symbol}
+        isOpen={isChartOpen}
+        onClose={() => setIsChartOpen(false)}
+        currentPrice={current_price}
+      />
     </Card>
   );
 }

@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CandlestickChart } from '@/components/CandlestickChart';
+import TradingViewWidget from '@/components/TradingViewWidget';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Trash2, Bell, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -419,15 +420,32 @@ export function TickerDetail({ symbol }: TickerDetailProps) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Price Chart</CardTitle>
-                  {lastUpdated && candles.length > 0 && (
-                    <span className="text-xs text-slate-500 font-normal">
-                      Last updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
-                    </span>
+                  {quote && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-2xl font-bold">${quote.price.toFixed(2)}</span>
+                      <span
+                        className={`font-medium ${
+                          quote.changePercent >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {quote.changePercent >= 0 ? '+' : ''}
+                        {quote.changePercent.toFixed(2)}%
+                      </span>
+                    </div>
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <CandlestickChart candles={candles} channel={channel} />
+              <CardContent className="min-h-[500px] md:min-h-[600px]">
+                <TradingViewWidget
+                  symbol={symbol}
+                  height="100%"
+                  autosize={true}
+                  theme="light"
+                  interval="D"
+                  allow_symbol_change={false}
+                  save_image={true}
+                  className="w-full h-full"
+                />
               </CardContent>
             </Card>
 

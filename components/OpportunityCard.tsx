@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ScanResult } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,14 +13,17 @@ import {
   AlertTriangle,
   CheckCircle2,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
+import TradingViewModal from './TradingViewModal';
 
 interface OpportunityCardProps {
   result: ScanResult;
 }
 
 export function OpportunityCard({ result }: OpportunityCardProps) {
+  const [isChartOpen, setIsChartOpen] = useState(false);
   const { watchlistItem, quote, action, signal, channel, pattern } = result;
 
   // Action badge color
@@ -61,7 +65,11 @@ export function OpportunityCard({ result }: OpportunityCardProps) {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <CardTitle className="text-2xl font-bold">
+              <CardTitle
+                className="text-2xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                onClick={() => setIsChartOpen(true)}
+                title="Click to view chart"
+              >
                 {watchlistItem.symbol}
               </CardTitle>
               <Badge className={getActionColor(action.recommendation)}>
@@ -211,14 +219,26 @@ export function OpportunityCard({ result }: OpportunityCardProps) {
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/ticker/${watchlistItem.symbol}`}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View Chart
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsChartOpen(true)}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            View Chart
           </Button>
         </div>
       </CardContent>
+
+      {/* TradingView Chart Modal */}
+      <TradingViewModal
+        symbol={watchlistItem.symbol}
+        isOpen={isChartOpen}
+        onClose={() => setIsChartOpen(false)}
+        companyName={watchlistItem.display_name || undefined}
+        currentPrice={quote.price}
+        changePercent={quote.changePercent}
+      />
     </Card>
   );
 }
