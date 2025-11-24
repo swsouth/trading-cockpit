@@ -182,7 +182,7 @@ import { supabase } from '@/lib/supabaseClient';
 
 async function updateScanUniverse() {
   // Get top stocks by volume/market cap from your data provider
-  // Example using Finnhub or Alpha Vantage
+  // Example using Finnhub or FMP
 
   const stocks = await fetchTopStocks({
     minMarketCap: 1_000_000_000, // $1B

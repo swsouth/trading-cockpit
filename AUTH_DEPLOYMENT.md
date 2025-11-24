@@ -113,7 +113,7 @@ Make sure these are set in your deployment platform:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_FINNHUB_API_KEY`
-- `NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY`
+- `FMP_API_KEY`
 
 ---
 
@@ -168,7 +168,7 @@ Before going to production, verify:
 - [ ] Site URL is set to production domain
 - [ ] Redirect URLs are configured
 - [ ] All environment variables are set in deployment platform
-- [ ] API rate limits are configured (Alpha Vantage: 25 requests/day free tier)
+- [ ] API rate limits are configured (FMP: 250 requests/day free tier)
 
 ---
 
@@ -214,7 +214,7 @@ Current requirements:
 
 ### API errors in production
 - Verify all environment variables are set
-- Check API key quotas (Alpha Vantage has 25 req/day limit on free tier)
+- Check API key quotas (FMP has 250 req/day limit on free tier)
 - Monitor Supabase logs for database errors
 
 ---
@@ -223,11 +223,11 @@ Current requirements:
 
 1. **Monitor Usage**
    - Check Supabase Dashboard for user signups
-   - Monitor API usage (Finnhub, Alpha Vantage)
+   - Monitor API usage (Finnhub, FMP)
    - Watch for errors in Supabase logs
 
 2. **Consider Upgrading API Plans**
-   - Alpha Vantage free tier: 25 requests/day
+   - FMP free tier: 250 requests/day
    - Finnhub free tier: 60 requests/minute
    - Upgrade if you exceed limits
 

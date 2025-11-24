@@ -273,7 +273,7 @@ The scanner gracefully handles:
 
 ## Notes
 
-- Scanner uses Alpha Vantage API (falls back to mock data if no key)
+- Scanner uses FMP API (falls back to mock data if no key)
 - Mock data rarely produces actionable setups (as expected)
 - Real market data will produce 10-20% opportunity rate
 - Only stocks scoring 60+ are saved (medium+ confidence)

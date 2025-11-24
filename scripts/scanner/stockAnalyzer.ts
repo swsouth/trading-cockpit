@@ -73,6 +73,7 @@ export async function analyzeSingleStock(
       success: true,
       recommendation,
       score,
+      candles: recentCandles, // Include candles for price data storage
     };
   } catch (error) {
     return {

@@ -39,7 +39,7 @@ Make sure these are set in **Netlify Dashboard → Site settings → Environment
 
 **Optional (but recommended for better data):**
 - `NEXT_PUBLIC_FINNHUB_API_KEY` - For real-time stock quotes
-- `NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY` - For historical stock data
+- `FMP_API_KEY` - For historical stock data
 - `NEXT_PUBLIC_COINGECKO_API_KEY` - For crypto data (optional)
 
 **Note:** Without the optional API keys, the app will use mock data for development.

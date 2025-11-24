@@ -7,15 +7,15 @@
 
 ### Current State
 - **Stock quotes**: Real-time via Finnhub (free tier)
-- **Stock charts**: Daily OHLC via Alpha Vantage (end-of-day data, 25 calls/day)
+- **Stock charts**: Daily OHLC via FMP (end-of-day data, 250 calls/day)
 - **Crypto**: Near real-time via CoinGecko (updated every few minutes)
 
 ### Potential Upgrades
 
 #### For Intraday Charts
-- **Alpha Vantage Premium** ($49.99/mo)
+- **FMP Premium** ($14/mo Starter plan)
   - 1min, 5min, 15min, 30min, 60min intervals
-  - 1200 calls/min
+  - 300 calls/min
   - Better for swing trading with intraday analysis
 
 #### For True Real-Time Streaming
@@ -207,7 +207,7 @@ Scan 500-2000 stocks automatically to find trading opportunities based on techni
 ### The Challenge: Data Volume
 
 **Problem:** Current free tier limits make scanning impractical
-- Alpha Vantage: 25 calls/day → 20 days to scan 500 stocks
+- FMP: 250 calls/day → Can scan 250 stocks/day (or ~2 days for 500 stocks)
 - Need 90 days OHLC data per stock
 - 500-2000 stocks = massive API usage
 
@@ -238,13 +238,13 @@ Scan 500-2000 stocks automatically to find trading opportunities based on techni
 
 **Cost:** $0/month
 
-#### Option 2: Progressive Scanning (Alpha Vantage)
+#### Option 2: Progressive Scanning (FMP)
 
 **Difficulty:** Easy (4-6 hours)
 
 **Implementation:**
-- Scan 25 stocks/day with Alpha Vantage free tier
-- Rotate through 500-stock universe over 20 days
+- Scan 250 stocks/day with FMP free tier
+- Rotate through 500-stock universe over 2 days
 - Cache and display recent results
 
 **Pros:**

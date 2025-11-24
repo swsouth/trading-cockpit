@@ -6,6 +6,7 @@
 
 import { TradeRecommendation } from '../../lib/tradeCalculator';
 import { OpportunityScore } from '../../lib/scoring';
+import { Candle } from '../../lib/types';
 
 /**
  * Single stock analysis result
@@ -16,6 +17,7 @@ export interface StockAnalysisResult {
   error?: string;
   recommendation?: TradeRecommendation;
   score?: OpportunityScore;
+  candles?: Candle[];  // Store the fetched price data for database storage
 }
 
 /**

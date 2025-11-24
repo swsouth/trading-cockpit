@@ -21,9 +21,9 @@ Your application requires the following environment variables to be configured i
    - For real-time stock quotes
    - Get free key at: https://finnhub.io
 
-4. **NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY**
+4. **FMP_API_KEY**
    - For historical candlestick data
-   - Get free key at: https://www.alphavantage.co/support/#api-key
+   - Get free key at: https://site.financialmodelingprep.com/developer/docs/
 
 ## How to Add Environment Variables in Netlify
 

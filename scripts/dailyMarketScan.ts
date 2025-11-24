@@ -12,6 +12,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 import { ScannerConfig, ScannerStats, StockAnalysisResult } from './scanner/types';
 import { analyzeBatch } from './scanner/stockAnalyzer';
 import { getActiveStocks, storeRecommendations, cleanupOldRecommendations, updateLastScanned } from './scanner/database';
+import { storePriceDataBatch } from './scanner/priceStorage';
+import { Candle } from '@/lib/types';
 
 // Default configuration
 const DEFAULT_CONFIG: ScannerConfig = {
@@ -108,7 +110,24 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
 
     console.log(`\n✅ Scanning complete!\n`);
 
-    // 3. Sort ALL results by score (highest first)
+    // 3. Store price data from all successful scans
+    console.log('💾 Storing historical price data...');
+    const priceDataMap = new Map<string, Candle[]>();
+
+    for (const result of allResults) {
+      if (result.success && result.candles && result.candles.length > 0) {
+        priceDataMap.set(result.symbol, result.candles);
+      }
+    }
+
+    if (priceDataMap.size > 0) {
+      const priceStats = await storePriceDataBatch(priceDataMap, 'fmp');
+      console.log(`   ✅ Stored price data for ${priceStats.successful}/${priceStats.total} stocks\n`);
+    } else {
+      console.log('   ⚠️  No price data to store\n');
+    }
+
+    // 4. Sort ALL results by score (highest first)
     const allSortedResults = allResults
       .sort((a, b) => (b.score?.totalScore || 0) - (a.score?.totalScore || 0));
 
@@ -129,18 +148,18 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
       console.log('   No results to display');
     }
 
-    // 4. Store ALL results in database (not just top N)
+    // 5. Store ALL results in database (not just top N)
     console.log(`\n💾 Storing all ${allSortedResults.length} scan results...`);
     const saved = await storeRecommendations(allSortedResults, scanDate);
     stats.saved = saved;
     console.log(`   ✅ Saved ${saved} scan results (all stocks analyzed)\n`);
 
-    // 5. Cleanup old recommendations
+    // 6. Cleanup old recommendations
     console.log('🧹 Cleaning up old recommendations (>30 days)...');
     await cleanupOldRecommendations(30);
     console.log('   ✅ Cleanup complete\n');
 
-    // 6. Print final stats
+    // 7. Print final stats
     stats.endTime = new Date();
     stats.durationMs = stats.endTime.getTime() - stats.startTime.getTime();
 
