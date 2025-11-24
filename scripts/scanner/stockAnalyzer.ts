@@ -19,8 +19,8 @@ export async function analyzeSingleStock(
   lookbackDays: number = 60
 ): Promise<StockAnalysisResult> {
   try {
-    // 1. Fetch candle data
-    const candles = await getDailyOHLC(symbol);
+    // 1. Fetch candle data - always use API for market scanner (to store fresh data)
+    const candles = await getDailyOHLC(symbol, 'api');
 
     if (!candles || candles.length < 20) {
       return {

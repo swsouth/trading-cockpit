@@ -28,9 +28,11 @@ export async function scanSymbol(
         getCryptoOHLC(symbol),
       ]);
     } else {
+      // Use database-first for watchlist scanner (avoids FMP API calls)
+      // Falls back to mock data in development if database empty
       [quote, candles] = await Promise.all([
         getQuote(symbol),
-        getDailyOHLC(symbol),
+        getDailyOHLC(symbol, 'auto'), // Try database first, then API if needed
       ]);
     }
 

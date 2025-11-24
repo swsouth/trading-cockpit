@@ -1,14 +1,23 @@
-import { Candle, Quote } from './types';
+/**
+ * Market Data Module
+ *
+ * Fetches real-time quotes and historical OHLC data for stocks
+ * with intelligent caching and database-first approach
+ */
 
+import { Quote, Candle } from './types';
+import { generateMockCandles } from './mockData';
+import { createClient } from '@supabase/supabase-js';
+
+const FMP_API_KEY = process.env.FMP_API_KEY;
+const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-const FMP_API_KEY = process.env.FMP_API_KEY;
-const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 
 // Environment detection
 const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === 'false';
 
-// Simple in-memory cache to reduce API calls
+// In-memory cache with timestamps
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 60000; // 1 minute
 
@@ -24,48 +33,85 @@ function setCache(key: string, data: any): void {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-// Fallback mock data generator
-function generateMockCandles(symbol: string): Candle[] {
-  const candles: Candle[] = [];
-  const now = new Date();
-  const basePrice = 150 + Math.random() * 50;
+/**
+ * Fetch stored price data from database
+ */
+async function getStoredCandles(symbol: string, days: number = 60): Promise<Candle[] | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  for (let i = 60; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-
-    if (date.getDay() === 0 || date.getDay() === 6) {
-      continue;
+    if (!supabaseUrl || !supabaseKey) {
+      return null;
     }
 
-    const dayOffset = Math.sin(i / 10) * 15 + (Math.random() - 0.5) * 5;
-    const open = basePrice + dayOffset;
-    const close = open + (Math.random() - 0.5) * 8;
-    const high = Math.max(open, close) + Math.random() * 3;
-    const low = Math.min(open, close) - Math.random() * 3;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    candles.push({
-      timestamp: date.toISOString().split('T')[0],
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
-      volume: Math.floor(1000000 + Math.random() * 5000000),
-    });
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const { data, error } = await supabase
+      .from('stock_prices')
+      .select('*')
+      .eq('symbol', symbol.toUpperCase())
+      .gte('date', startDate.toISOString().split('T')[0])
+      .order('date', { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+
+    // Transform to Candle format
+    return data.map(record => ({
+      date: record.date,
+      open: parseFloat(record.open),
+      high: parseFloat(record.high),
+      low: parseFloat(record.low),
+      close: parseFloat(record.close),
+      volume: parseInt(record.volume),
+      adjClose: record.adjusted_close ? parseFloat(record.adjusted_close) : undefined,
+    }));
+  } catch (error) {
+    console.error(`Error fetching stored candles for ${symbol}:`, error);
+    return null;
   }
-
-  return candles;
 }
 
-export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
+/**
+ * Get daily OHLC data - Database first, then FMP API fallback
+ *
+ * @param symbol - Stock ticker symbol
+ * @param source - 'database' (default) or 'api' - force specific source
+ * @returns Array of candle data
+ */
+export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 'auto' = 'auto'): Promise<Candle[]> {
   // Check cache first
-  const cacheKey = `candles_${symbol}`;
+  const cacheKey = `candles_${symbol}_${source}`;
   const cached = getCached<Candle[]>(cacheKey);
   if (cached) {
     return cached;
   }
 
-  // If no API key in production, throw error
+  // Try database first (unless explicitly requesting API)
+  if (source === 'database' || source === 'auto') {
+    const storedCandles = await getStoredCandles(symbol, 60);
+    if (storedCandles && storedCandles.length >= 20) {
+      console.log(`✅ Using stored data for ${symbol} (${storedCandles.length} bars from database)`);
+      setCache(cacheKey, storedCandles);
+      return storedCandles;
+    }
+
+    if (source === 'database') {
+      // Database explicitly requested but not available
+      console.warn(`⚠️  No stored data for ${symbol}, falling back to mock`);
+      if (isProduction) {
+        throw new Error(`No historical data available for ${symbol}`);
+      }
+      return generateMockCandles(symbol);
+    }
+  }
+
+  // Fallback to FMP API (market scan use case)
   if (!FMP_API_KEY) {
     if (isProduction) {
       throw new Error('FMP API key not configured. Please contact support.');
@@ -97,34 +143,34 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
       return generateMockCandles(symbol);
     }
 
-    // Stable endpoint returns array directly
-    if (!Array.isArray(data) || data.length === 0) {
-      console.warn(`No data found for symbol ${symbol}`);
+    // Parse the response (FMP returns array of {date, open, high, low, close, volume})
+    const candles: Candle[] = (data.historical || data).map((bar: any) => ({
+      date: bar.date,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume,
+      adjClose: bar.adjClose,
+    }));
+
+    if (candles.length === 0) {
+      console.warn(`No candle data returned for ${symbol}`);
       if (isProduction) {
-        throw new Error(`No market data available for ${symbol}`);
+        throw new Error(`No price data available for ${symbol}`);
       }
       return generateMockCandles(symbol);
     }
 
-    // Convert FMP format to our Candle format
-    // FMP returns newest first, so we reverse to get chronological order
-    const candles: Candle[] = data
-      .map((item: any) => ({
-        timestamp: item.date,
-        open: parseFloat(parseFloat(item.open).toFixed(2)),
-        high: parseFloat(parseFloat(item.high).toFixed(2)),
-        low: parseFloat(parseFloat(item.low).toFixed(2)),
-        close: parseFloat(parseFloat(item.close).toFixed(2)),
-        volume: parseInt(item.volume),
-      }))
-      .reverse(); // Reverse to get chronological order (oldest to newest)
+    // Sort by date (most recent first) and reverse to get chronological order
+    candles.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Cache the results
+    console.log(`✅ Fetched ${candles.length} candles for ${symbol} from FMP API`);
     setCache(cacheKey, candles);
-
     return candles;
   } catch (error) {
-    console.error('Error fetching candles from FMP:', error);
+    console.error(`Error fetching candles from FMP:`, error);
+
     if (isProduction) {
       throw new Error(`Failed to fetch market data for ${symbol}. Please try again later.`);
     }
@@ -133,6 +179,9 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
   }
 }
 
+/**
+ * Get real-time quote - Finnhub API
+ */
 export async function getQuote(symbol: string): Promise<Quote> {
   // Check cache first
   const cacheKey = `quote_${symbol}`;
@@ -141,35 +190,26 @@ export async function getQuote(symbol: string): Promise<Quote> {
     return cached;
   }
 
-  // If no API key, fallback to candle data (which will throw in production if unavailable)
   if (!FINNHUB_API_KEY) {
     if (isProduction) {
-      console.warn('Finnhub API key not configured, using FMP candle data for quotes');
-    } else {
-      console.warn('Finnhub API key not configured, using candle data for development');
+      throw new Error('Finnhub API key not configured. Please contact support.');
     }
 
-    const candles = await getDailyOHLC(symbol);
-    const latestCandle = candles[candles.length - 1];
-    const previousCandle = candles[candles.length - 2];
-
-    if (!latestCandle || !previousCandle) {
-      throw new Error(`Insufficient data for ${symbol}`);
-    }
-
-    const changePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
-
-    return {
+    // Return mock quote for development
+    console.warn(`Finnhub API key not configured, using mock quote for ${symbol}`);
+    const mockQuote: Quote = {
       symbol,
-      price: latestCandle.close,
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      open: latestCandle.open,
-      high: latestCandle.high,
-      low: latestCandle.low,
-      previousClose: previousCandle.close,
-      volume: latestCandle.volume,
-      timestamp: new Date().toISOString(),
+      price: 100 + Math.random() * 50,
+      change: (Math.random() - 0.5) * 10,
+      changePercent: (Math.random() - 0.5) * 5,
+      previousClose: 100,
+      high: 110,
+      low: 90,
+      open: 95,
+      volume: 1000000,
+      timestamp: Date.now(),
     };
+    return mockQuote;
   }
 
   try {
@@ -183,74 +223,65 @@ export async function getQuote(symbol: string): Promise<Quote> {
 
     const data = await response.json();
 
-    // Finnhub quote response: { c: current, d: change, dp: percent change, h: high, l: low, o: open, pc: previous close }
+    // Check for valid data
     if (!data.c || data.c === 0) {
-      // No current price, fall back to candle data
-      const candles = await getDailyOHLC(symbol);
-      const latestCandle = candles[candles.length - 1];
-      const previousCandle = candles[candles.length - 2];
-
-      if (!latestCandle || !previousCandle) {
-        throw new Error('Insufficient data');
+      console.warn(`No quote data for ${symbol} from Finnhub`);
+      if (isProduction) {
+        throw new Error(`Unable to fetch quote for ${symbol}`);
       }
 
-      const changePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
-
-      const quote = {
+      // Return mock data for development
+      const mockQuote: Quote = {
         symbol,
-        price: latestCandle.close,
-        changePercent: parseFloat(changePercent.toFixed(2)),
-        open: latestCandle.open,
-        high: latestCandle.high,
-        low: latestCandle.low,
-        previousClose: previousCandle.close,
-        volume: latestCandle.volume,
-        timestamp: new Date().toISOString(),
+        price: 100,
+        change: 0,
+        changePercent: 0,
+        previousClose: 100,
+        high: 100,
+        low: 100,
+        open: 100,
+        volume: 0,
+        timestamp: Date.now(),
       };
-
-      setCache(cacheKey, quote);
-      return quote;
+      return mockQuote;
     }
 
     const quote: Quote = {
       symbol,
-      price: parseFloat(data.c.toFixed(2)),
-      changePercent: parseFloat(data.dp.toFixed(2)),
-      open: parseFloat(data.o.toFixed(2)),
-      high: parseFloat(data.h.toFixed(2)),
-      low: parseFloat(data.l.toFixed(2)),
-      previousClose: parseFloat(data.pc.toFixed(2)),
-      volume: 0, // Finnhub quote doesn't include volume, would need separate call
-      timestamp: new Date().toISOString(),
+      price: data.c, // current price
+      change: data.d, // change
+      changePercent: data.dp, // change percent
+      previousClose: data.pc, // previous close
+      high: data.h, // high
+      low: data.l, // low
+      open: data.o, // open
+      volume: 0, // Finnhub doesn't provide volume in quote endpoint
+      timestamp: data.t * 1000, // convert to milliseconds
     };
 
     setCache(cacheKey, quote);
     return quote;
   } catch (error) {
-    console.error('Error fetching quote from Finnhub:', error);
-    console.warn('Falling back to candle-based quote');
+    console.error(`Error fetching quote from Finnhub:`, error);
 
-    // Fallback to candle data
-    const candles = await getDailyOHLC(symbol);
-    const latestCandle = candles[candles.length - 1];
-    const previousCandle = candles[candles.length - 2];
-
-    if (!latestCandle || !previousCandle) {
-      throw new Error('Insufficient data');
+    if (isProduction) {
+      throw new Error(`Failed to fetch quote for ${symbol}. Please try again later.`);
     }
 
-    const changePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;
-
-    return {
+    // Return mock data for development
+    console.warn('Falling back to mock quote for development');
+    const mockQuote: Quote = {
       symbol,
-      price: latestCandle.close,
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      open: latestCandle.open,
-      high: latestCandle.high,
-      low: latestCandle.low,
-      previousClose: previousCandle.close,
-      volume: latestCandle.volume,
-      timestamp: new Date().toISOString(),
+      price: 100,
+      change: 0,
+      changePercent: 0,
+      previousClose: 100,
+      high: 100,
+      low: 100,
+      open: 100,
+      volume: 0,
+      timestamp: Date.now(),
     };
+    return mockQuote;
   }
 }
