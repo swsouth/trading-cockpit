@@ -31,6 +31,7 @@ export default function RecommendationsPage() {
   const [stats, setStats] = useState<RecommendationStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [latestScanDate, setLatestScanDate] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
@@ -43,6 +44,7 @@ export default function RecommendationsPage() {
 
   const fetchRecommendations = async () => {
     setLoading(true);
+    setError(null); // Clear previous errors
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -100,7 +102,7 @@ export default function RecommendationsPage() {
     } catch (error) {
       console.error('❌ Error fetching recommendations:', error);
       const message = error instanceof Error ? error.message : 'Failed to fetch recommendations. Please try again.';
-      alert(message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -146,6 +148,21 @@ export default function RecommendationsPage() {
           )}
         </Button>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/10 dark:border-red-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-red-900 dark:text-red-200 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Error Loading Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-red-800 dark:text-red-300">
+            <p>{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Disclaimer */}
       <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/10 dark:border-orange-900">
@@ -316,15 +333,18 @@ export default function RecommendationsPage() {
       </Card>
 
       {/* Results */}
-      {recommendations.length === 0 && !loading && (
+      {recommendations.length === 0 && !loading && !error && (
         <Card>
           <CardContent className="pt-6 text-center text-muted-foreground">
             <Target className="mx-auto h-12 w-12 mb-4 opacity-50" />
-            <p className="text-lg font-medium">No recommendations found</p>
+            <p className="text-lg font-medium">No scan results yet</p>
             <p className="text-sm mt-1">
               {latestScanDate
-                ? 'Try adjusting your filters or check back after the next scan'
-                : 'Run the daily market scanner to generate recommendations'}
+                ? 'Try adjusting your filters or wait for the next scheduled scan (Mon-Fri at 5 PM ET)'
+                : 'The daily market scanner will run Mon-Fri at 5 PM ET to analyze all 249 stocks'}
+            </p>
+            <p className="text-xs mt-3 text-muted-foreground/60">
+              Next scan will populate this page with complete market analysis for all stocks in the universe
             </p>
           </CardContent>
         </Card>
