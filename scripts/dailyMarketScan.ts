@@ -21,7 +21,8 @@ const DEFAULT_CONFIG: ScannerConfig = {
   batchDelayMs: 2000,         // 2 second delay between batches
   minScore: 0,                // Store ALL results (was 60, now 0 to show everything)
   maxRecommendations: 1000,   // Store all results (was 30, now unlimited)
-  lookbackDays: 60,           // Use 60 days of historical data
+  lookbackDays: 365,          // Use 1 year of historical data (FMP free tier allows 5 years!)
+                              // More data = better channel detection, pattern validation, trend analysis
 };
 
 /**
