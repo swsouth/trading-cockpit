@@ -3,6 +3,9 @@ import { Quote, Candle } from './types';
 const COINGECKO_API_KEY = process.env.NEXT_PUBLIC_COINGECKO_API_KEY;
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 
+// Note: This module is production-ready. It throws errors instead of returning mock data.
+// This ensures users always see real crypto data or clear error messages.
+
 // Cache for crypto data (10 minute cache)
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 600000; // 10 minutes

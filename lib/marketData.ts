@@ -5,6 +5,9 @@ const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 const FMP_API_KEY = process.env.FMP_API_KEY;
 const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 
+// Environment detection
+const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === 'false';
+
 // Simple in-memory cache to reduce API calls
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 60000; // 1 minute
@@ -62,9 +65,12 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
     return cached;
   }
 
-  // If no API key, use mock data
+  // If no API key in production, throw error
   if (!FMP_API_KEY) {
-    console.warn('FMP API key not configured, using mock data');
+    if (isProduction) {
+      throw new Error('FMP API key not configured. Please contact support.');
+    }
+    console.warn('FMP API key not configured, using mock data for development');
     return generateMockCandles(symbol);
   }
 
@@ -83,13 +89,20 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
 
     // Check for API errors
     if (data['Error Message'] || data.error) {
-      console.warn(`Invalid symbol ${symbol}:`, data['Error Message'] || data.error);
+      const errorMsg = data['Error Message'] || data.error;
+      console.warn(`Invalid symbol ${symbol}:`, errorMsg);
+      if (isProduction) {
+        throw new Error(`Unable to fetch data for ${symbol}: ${errorMsg}`);
+      }
       return generateMockCandles(symbol);
     }
 
     // Stable endpoint returns array directly
     if (!Array.isArray(data) || data.length === 0) {
-      console.warn(`No data found for symbol ${symbol}, using mock data`);
+      console.warn(`No data found for symbol ${symbol}`);
+      if (isProduction) {
+        throw new Error(`No market data available for ${symbol}`);
+      }
       return generateMockCandles(symbol);
     }
 
@@ -112,7 +125,10 @@ export async function getDailyOHLC(symbol: string): Promise<Candle[]> {
     return candles;
   } catch (error) {
     console.error('Error fetching candles from FMP:', error);
-    console.warn('Falling back to mock data');
+    if (isProduction) {
+      throw new Error(`Failed to fetch market data for ${symbol}. Please try again later.`);
+    }
+    console.warn('Falling back to mock data for development');
     return generateMockCandles(symbol);
   }
 }
@@ -125,14 +141,20 @@ export async function getQuote(symbol: string): Promise<Quote> {
     return cached;
   }
 
-  // If no API key, use mock data
+  // If no API key, fallback to candle data (which will throw in production if unavailable)
   if (!FINNHUB_API_KEY) {
+    if (isProduction) {
+      console.warn('Finnhub API key not configured, using FMP candle data for quotes');
+    } else {
+      console.warn('Finnhub API key not configured, using candle data for development');
+    }
+
     const candles = await getDailyOHLC(symbol);
     const latestCandle = candles[candles.length - 1];
     const previousCandle = candles[candles.length - 2];
 
     if (!latestCandle || !previousCandle) {
-      throw new Error('Insufficient data');
+      throw new Error(`Insufficient data for ${symbol}`);
     }
 
     const changePercent = ((latestCandle.close - previousCandle.close) / previousCandle.close) * 100;

@@ -11,7 +11,8 @@
     "populate-universe": "npx tsx scripts/populateScanUniverse.ts",
     "scan-market": "npx tsx scripts/dailyMarketScan.ts",
     "test-scanner": "npx tsx scripts/testScanner.ts",
-    "test-populate": "npx tsx scripts/populateTestRecommendations.ts"
+    "test-populate": "npx tsx scripts/populateTestRecommendations.ts",
+    "clean-recommendations": "npx tsx scripts/cleanAllRecommendations.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
