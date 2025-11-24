@@ -17,8 +17,8 @@ import { getActiveStocks, storeRecommendations, cleanupOldRecommendations, updat
 const DEFAULT_CONFIG: ScannerConfig = {
   batchSize: 25,              // Process 25 stocks at a time
   batchDelayMs: 2000,         // 2 second delay between batches
-  minScore: 60,               // Minimum score of 60 (medium confidence)
-  maxRecommendations: 30,     // Store top 30 recommendations
+  minScore: 0,                // Store ALL results (was 60, now 0 to show everything)
+  maxRecommendations: 1000,   // Store all results (was 30, now unlimited)
   lookbackDays: 60,           // Use 60 days of historical data
 };
 
@@ -75,12 +75,19 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
       stats.successful += results.filter(r => r.success).length;
       stats.failed += results.filter(r => !r.success).length;
 
-      // Collect results with opportunities
-      const opportunities = results.filter(
-        r => r.success && r.recommendation && r.score && r.score.totalScore >= config.minScore
+      // Collect ALL successful results (not just opportunities)
+      const successfulResults = results.filter(
+        r => r.success && r.recommendation && r.score
+      );
+
+      // Count how many meet the quality threshold (for stats only)
+      const opportunities = successfulResults.filter(
+        r => r.score && r.score.totalScore >= 60
       );
       stats.opportunities += opportunities.length;
-      allResults.push(...opportunities);
+
+      // But store ALL successful scans
+      allResults.push(...successfulResults);
 
       // Log progress
       const opportunitiesInBatch = opportunities.length;
@@ -101,32 +108,32 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
 
     console.log(`\n✅ Scanning complete!\n`);
 
-    // 3. Sort by score and take top N
-    const topRecommendations = allResults
-      .sort((a, b) => (b.score?.totalScore || 0) - (a.score?.totalScore || 0))
-      .slice(0, config.maxRecommendations);
+    // 3. Sort ALL results by score (highest first)
+    const allSortedResults = allResults
+      .sort((a, b) => (b.score?.totalScore || 0) - (a.score?.totalScore || 0));
 
-    console.log(`📈 Top Opportunities:\n`);
-    if (topRecommendations.length > 0) {
-      topRecommendations.slice(0, 10).forEach((result, index) => {
+    console.log(`📈 All Scan Results: ${allSortedResults.length} stocks analyzed\n`);
+    console.log(`📊 Top 10 by Score:\n`);
+    if (allSortedResults.length > 0) {
+      allSortedResults.slice(0, 10).forEach((result, index) => {
         const { symbol, score, recommendation } = result;
         if (score && recommendation) {
           console.log(`   ${(index + 1).toString().padStart(2)}. ${symbol.padEnd(6)} - Score: ${score.totalScore}/100 (${score.confidenceLevel}) - ${recommendation.setup.setupName}`);
         }
       });
 
-      if (topRecommendations.length > 10) {
-        console.log(`   ... and ${topRecommendations.length - 10} more`);
+      if (allSortedResults.length > 10) {
+        console.log(`   ... and ${allSortedResults.length - 10} more (all will be saved to database)`);
       }
     } else {
-      console.log('   No recommendations found');
+      console.log('   No results to display');
     }
 
-    // 4. Store in database
-    console.log(`\n💾 Storing top ${topRecommendations.length} recommendations...`);
-    const saved = await storeRecommendations(topRecommendations, scanDate);
+    // 4. Store ALL results in database (not just top N)
+    console.log(`\n💾 Storing all ${allSortedResults.length} scan results...`);
+    const saved = await storeRecommendations(allSortedResults, scanDate);
     stats.saved = saved;
-    console.log(`   ✅ Saved ${saved} recommendations\n`);
+    console.log(`   ✅ Saved ${saved} scan results (all stocks analyzed)\n`);
 
     // 5. Cleanup old recommendations
     console.log('🧹 Cleaning up old recommendations (>30 days)...');
@@ -152,12 +159,22 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
     console.log(`Avg per stock:       ${(stats.durationMs / stats.processed).toFixed(0)}ms\n`);
 
     console.log(`Confidence Breakdown:`);
-    const highConf = topRecommendations.filter(r => r.score?.confidenceLevel === 'high').length;
-    const medConf = topRecommendations.filter(r => r.score?.confidenceLevel === 'medium').length;
-    const lowConf = topRecommendations.filter(r => r.score?.confidenceLevel === 'low').length;
+    const highConf = allSortedResults.filter(r => r.score?.confidenceLevel === 'high').length;
+    const medConf = allSortedResults.filter(r => r.score?.confidenceLevel === 'medium').length;
+    const lowConf = allSortedResults.filter(r => r.score?.confidenceLevel === 'low').length;
     console.log(`  High:   ${highConf}`);
     console.log(`  Medium: ${medConf}`);
     console.log(`  Low:    ${lowConf}\n`);
+
+    console.log(`Score Distribution:`);
+    const score80Plus = allSortedResults.filter(r => r.score && r.score.totalScore >= 80).length;
+    const score60to79 = allSortedResults.filter(r => r.score && r.score.totalScore >= 60 && r.score.totalScore < 80).length;
+    const score40to59 = allSortedResults.filter(r => r.score && r.score.totalScore >= 40 && r.score.totalScore < 60).length;
+    const scoreBelow40 = allSortedResults.filter(r => r.score && r.score.totalScore < 40).length;
+    console.log(`  80-100 (Excellent): ${score80Plus}`);
+    console.log(`  60-79  (Good):      ${score60to79}`);
+    console.log(`  40-59  (Fair):      ${score40to59}`);
+    console.log(`  0-39   (Weak):      ${scoreBelow40}\n`);
 
     console.log('✅ Daily market scan complete!\n');
 

@@ -61,13 +61,26 @@ export async function GET(request: NextRequest) {
     const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : 0;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 30;
     const activeOnly = searchParams.get('activeOnly') !== 'false'; // default true
+    const sortBy = searchParams.get('sortBy') as 'score' | 'symbol' | 'confidence' | 'setup' || 'score';
+    const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' || 'desc';
+
+    // Map sort options to database columns
+    const sortColumnMap = {
+      score: 'opportunity_score',
+      symbol: 'symbol',
+      confidence: 'confidence_level',
+      setup: 'setup_type'
+    };
+
+    const sortColumn = sortColumnMap[sortBy] || 'opportunity_score';
+    const ascending = sortOrder === 'asc';
 
     // Build query
     let query = supabase
       .from('trade_recommendations')
       .select('*')
-      .order('opportunity_score', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order(sortColumn, { ascending })
+      .order('created_at', { ascending: false }); // Secondary sort by date
 
     // Apply filters
     if (activeOnly) {

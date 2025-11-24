@@ -37,6 +37,10 @@ export default function RecommendationsPage() {
   const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [minScore, setMinScore] = useState<number>(0);
 
+  // Sorting
+  const [sortBy, setSortBy] = useState<'score' | 'symbol' | 'confidence' | 'setup'>('score');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
@@ -57,7 +61,9 @@ export default function RecommendationsPage() {
       if (confidenceFilter !== 'all') params.append('confidenceLevel', confidenceFilter);
       if (minScore > 0) params.append('minScore', minScore.toString());
       params.append('activeOnly', 'true');
-      params.append('limit', '30');
+      params.append('limit', '1000'); // Get all results (was 30, now unlimited)
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
 
       console.log('📡 Fetching:', `/api/recommendations?${params.toString()}`);
 
@@ -100,20 +106,20 @@ export default function RecommendationsPage() {
     }
   };
 
-  // Fetch on mount and when filters change
+  // Fetch on mount and when filters/sorting change
   useEffect(() => {
     fetchRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recommendationTypeFilter, confidenceFilter, minScore]);
+  }, [recommendationTypeFilter, confidenceFilter, minScore, sortBy, sortOrder]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Daily Recommendations</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Market Scan Results</h1>
           <p className="text-muted-foreground mt-1">
-            Top trading opportunities from daily market-wide scans
+            Complete analysis of all {stats?.total || '249'} stocks from daily market scan
           </p>
           {latestScanDate && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -205,13 +211,50 @@ export default function RecommendationsPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters & Sorting */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
+          <CardTitle className="text-lg">Filters & Sorting</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent className="space-y-6">
+          {/* Sorting Controls */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Sort By</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                value={sortBy}
+                onValueChange={(value) => setSortBy(value as 'score' | 'symbol' | 'confidence' | 'setup')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="score">Opportunity Score</SelectItem>
+                  <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
+                  <SelectItem value="confidence">Confidence Level</SelectItem>
+                  <SelectItem value="setup">Setup Type</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={sortOrder}
+                onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Highest First</SelectItem>
+                  <SelectItem value="asc">Lowest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Filter Controls */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Filters</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Type Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Type</label>
@@ -267,6 +310,7 @@ export default function RecommendationsPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
           </div>
         </CardContent>
       </Card>
