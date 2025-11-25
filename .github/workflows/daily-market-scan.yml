@@ -1,15 +1,20 @@
-name: Daily Market Scanner
+name: Manual Market Scanner
 
 on:
-  # Run every weekday at 5:00 PM ET (9:00 PM UTC / 10:00 PM UTC depending on DST)
-  # After market close (4:00 PM ET) but before end of day
-  schedule:
-    # 9:00 PM UTC = 5:00 PM ET (standard time)
-    - cron: '0 21 * * 1-5'
-    # 10:00 PM UTC = 5:00 PM ET (daylight time) - Comment out one based on season
-    # - cron: '0 22 * * 1-5'
+  # AUTOMATIC SCHEDULE DISABLED
+  # Reason: Scanner runtime (~65 min) exceeds Netlify function timeout (10-26s)
+  # Solution: Run manually via `npm run scan-market` locally or use GitHub Actions manual trigger
+  #
+  # To re-enable automatic scanning, you would need:
+  # 1. A background job service (not serverless functions)
+  # 2. OR split the scanner into smaller daily segments
+  # 3. OR reduce the stock universe significantly
+  #
+  # Previous schedule: Mon-Fri at 5:00 PM ET (9:00 PM UTC)
+  # schedule:
+  #   - cron: '0 21 * * 1-5'
 
-  # Allow manual trigger from GitHub Actions UI
+  # Manual trigger from GitHub Actions UI
   workflow_dispatch:
 
 jobs:
@@ -20,7 +25,9 @@ jobs:
     steps:
       - name: Trigger Scanner API
         run: |
-          echo "🚀 Triggering daily market scan..."
+          echo "🚀 Triggering manual market scan via API..."
+          echo "⚠️  Note: This will timeout (504) because scanner runtime exceeds function timeout"
+          echo "    Use 'npm run scan-market' locally instead"
 
           response=$(curl -s -w "\n%{http_code}" -X POST \
             https://${{ secrets.SITE_URL }}/api/scan/trigger \
@@ -44,6 +51,6 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "❌ Daily market scan failed!"
-          echo "Check the logs above for details."
-          # You can add email/Slack notification here if needed
+          echo "❌ API-triggered scan failed (expected - see timeout note above)"
+          echo "To run the scanner successfully, use: npm run scan-market"
+          echo "Scanner runtime: ~65 min, Netlify timeout: 10-26s"
