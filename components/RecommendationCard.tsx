@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import TradingViewModal from './TradingViewModal';
+import { getCompanyName } from '@/lib/stockNames';
 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
@@ -77,22 +78,48 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
   const getScoreColor = (score: number) => {
     if (score >= 75) return 'text-green-600 dark:text-green-400';
     if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-gray-600 dark:text-gray-400';
+    if (score >= 50) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+  };
+
+  // High risk indicator for scores < 50
+  const isHighRisk = opportunity_score < 50;
+
+  // Calculate expected timeframe based on setup type
+  const getExpectedTimeframe = (setupType: string): string => {
+    if (setupType.includes('Bounce') || setupType.includes('Rejection')) {
+      return '1-2 weeks';
+    } else if (setupType.includes('Breakout') || setupType.includes('Breakdown')) {
+      return '2-4 weeks';
+    } else if (setupType.includes('Channel')) {
+      return '1-3 weeks';
+    } else if (setupType.includes('Pattern Only')) {
+      return 'Days-1 week';
+    } else {
+      return '1-3 weeks'; // Default for other setups
+    }
   };
 
   return (
-    <Card>
+    <Card className={isHighRisk ? 'border-2 border-red-500 dark:border-red-600' : ''}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <CardTitle
-                className="text-2xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                onClick={() => setIsChartOpen(true)}
-                title="Click to view chart"
-              >
-                {symbol}
-              </CardTitle>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-3 flex-wrap">
+                <CardTitle
+                  className="text-2xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  onClick={() => setIsChartOpen(true)}
+                  title="Click to view chart"
+                >
+                  {symbol}
+                </CardTitle>
+              </div>
+              <div className="text-sm text-muted-foreground -mt-1">
+                {getCompanyName(symbol)}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap mt-2">
               <Badge className={getDirectionColor(recommendation_type)}>
                 {recommendation_type === 'long' ? (
                   <>
@@ -109,6 +136,11 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
               <Badge className={getConfidenceColor(confidence_level)}>
                 {confidence_level.toUpperCase()}
               </Badge>
+              {isHighRisk && (
+                <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300 dark:border-red-700">
+                  ⚠️ HIGH RISK
+                </Badge>
+              )}
               <Badge variant="outline">{setup_type}</Badge>
               {pattern_detected && pattern_detected !== 'none' && (
                 <Badge variant="secondary" className="text-xs">
@@ -179,12 +211,21 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
             </div>
           </div>
 
-          {/* Risk/Reward */}
-          <div className="pt-2 border-t flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Risk/Reward Ratio:</span>
-            <span className="font-bold text-blue-600 dark:text-blue-400">
-              {risk_reward_ratio.toFixed(2)}:1
-            </span>
+          {/* Expected Timeframe & Risk/Reward */}
+          <div className="pt-2 border-t grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Expected</div>
+                <div className="font-medium">{getExpectedTimeframe(setup_type)}</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground mb-0.5">Risk/Reward</div>
+              <div className="font-bold text-blue-600 dark:text-blue-400">
+                {risk_reward_ratio.toFixed(2)}:1
+              </div>
+            </div>
           </div>
         </div>
 
@@ -203,6 +244,20 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
                 <div className="font-medium capitalize">{trend}</div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* High Risk Warning */}
+        {isHighRisk && (
+          <div className="text-sm bg-red-50 dark:bg-red-950/20 rounded-lg p-3 border border-red-200 dark:border-red-900">
+            <div className="font-bold text-red-900 dark:text-red-200 mb-1 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              High Risk Trade
+            </div>
+            <p className="text-red-800 dark:text-red-300 text-xs">
+              This recommendation has a low opportunity score (below 50/100). The setup lacks strong technical confirmation.
+              Trade with extreme caution, use smaller position sizes, and consider this highly speculative.
+            </p>
           </div>
         )}
 
