@@ -106,20 +106,26 @@ export default function ChartModal({ symbol, isOpen, onClose }: ChartModalProps)
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 p-4 bg-muted/50 rounded-lg">
                   <div>
                     <div className="text-xs text-muted-foreground">Support</div>
-                    <div className="text-sm font-bold text-green-600">${channel.support.toFixed(2)}</div>
+                    <div className="text-sm font-bold text-green-600">
+                      ${typeof channel.support === 'number' ? channel.support.toFixed(2) : '—'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Resistance</div>
-                    <div className="text-sm font-bold text-red-600">${channel.resistance.toFixed(2)}</div>
+                    <div className="text-sm font-bold text-red-600">
+                      ${typeof channel.resistance === 'number' ? channel.resistance.toFixed(2) : '—'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Channel Width</div>
-                    <div className="text-sm font-bold">{channel.channelWidth.toFixed(1)}%</div>
+                    <div className="text-sm font-bold">
+                      {typeof channel.channelWidth === 'number' ? `${channel.channelWidth.toFixed(1)}%` : '—'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Position</div>
                     <div className="text-sm font-bold capitalize">
-                      {channel.pricePosition.replace(/_/g, ' ')}
+                      {channel.pricePosition ? channel.pricePosition.replace(/_/g, ' ') : '—'}
                     </div>
                   </div>
                 </div>
