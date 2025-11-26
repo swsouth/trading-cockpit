@@ -266,7 +266,7 @@ export default function RecommendationsPage() {
             <CardHeader className="pb-2">
               <CardDescription>Highest Score</CardDescription>
               <CardTitle className="text-3xl text-purple-600 dark:text-purple-400">
-                {stats.maxScore.toFixed(0)}
+                {stats.maxScore?.toFixed(0) || '—'}
               </CardTitle>
               {stats.topScoreSymbol && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -294,7 +294,7 @@ export default function RecommendationsPage() {
             <CardHeader className="pb-2">
               <CardDescription>Highest R:R</CardDescription>
               <CardTitle className="text-3xl text-blue-600 dark:text-blue-400">
-                {stats.maxRiskReward.toFixed(1)}:1
+                {stats.maxRiskReward?.toFixed(1) ? `${stats.maxRiskReward.toFixed(1)}:1` : '—'}
               </CardTitle>
               {stats.topRiskRewardSymbol && (
                 <p className="text-xs text-muted-foreground mt-1">
