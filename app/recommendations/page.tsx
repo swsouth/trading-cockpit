@@ -24,6 +24,10 @@ interface RecommendationStats {
   };
   avgScore: number;
   avgRiskReward: number;
+  maxScore: number;
+  maxRiskReward: number;
+  topScoreSymbol: string | null;
+  topRiskRewardSymbol: string | null;
 }
 
 export default function RecommendationsPage() {
@@ -37,9 +41,10 @@ export default function RecommendationsPage() {
   const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [minScore, setMinScore] = useState<number>(0);
+  const [symbolFilter, setSymbolFilter] = useState<string | null>(null);
 
   // Sorting
-  const [sortBy, setSortBy] = useState<'score' | 'symbol' | 'confidence' | 'setup'>('score');
+  const [sortBy, setSortBy] = useState<'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward'>('score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchRecommendations = async () => {
@@ -178,6 +183,10 @@ export default function RecommendationsPage() {
             This is NOT financial advice. NOT a recommendation to buy or sell.
           </p>
           <p>
+            <strong>High-risk trades (score &lt;50) are marked with a red border.</strong> These setups lack strong technical confirmation
+            and should be traded with extreme caution or smaller position sizes.
+          </p>
+          <p>
             Do your own research and consult a financial advisor. Trading involves substantial risk of loss.
             Only trade with money you can afford to lose.
           </p>
@@ -187,13 +196,34 @@ export default function RecommendationsPage() {
       {/* Stats Overview */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card>
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+            onClick={() => {
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setMinScore(0);
+              setSymbolFilter(null);
+            }}
+            style={{
+              outline: recommendationTypeFilter === 'all' && confidenceFilter === 'all' && minScore === 0 && !symbolFilter
+                ? '2px solid hsl(var(--primary))'
+                : 'none',
+            }}
+          >
             <CardHeader className="pb-2">
               <CardDescription>Total</CardDescription>
               <CardTitle className="text-3xl">{stats.total}</CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+            onClick={() => setRecommendationTypeFilter('long')}
+            style={{
+              outline: recommendationTypeFilter === 'long'
+                ? '2px solid rgb(22, 163, 74)'
+                : 'none',
+            }}
+          >
             <CardHeader className="pb-2">
               <CardDescription>Long Setups</CardDescription>
               <CardTitle className="text-3xl text-green-600 dark:text-green-400">
@@ -201,7 +231,15 @@ export default function RecommendationsPage() {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+            onClick={() => setRecommendationTypeFilter('short')}
+            style={{
+              outline: recommendationTypeFilter === 'short'
+                ? '2px solid rgb(220, 38, 38)'
+                : 'none',
+            }}
+          >
             <CardHeader className="pb-2">
               <CardDescription>Short Setups</CardDescription>
               <CardTitle className="text-3xl text-red-600 dark:text-red-400">
@@ -209,20 +247,56 @@ export default function RecommendationsPage() {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+            onClick={() => {
+              setSortBy('score');
+              setSortOrder('desc');
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setMinScore(0);
+              setSymbolFilter(null);
+            }}
+            style={{
+              outline: sortBy === 'score' && sortOrder === 'desc'
+                ? '2px solid rgb(168, 85, 247)'
+                : 'none',
+            }}
+          >
             <CardHeader className="pb-2">
               <CardDescription>Avg Score</CardDescription>
-              <CardTitle className="text-3xl">
+              <CardTitle className="text-3xl text-purple-600 dark:text-purple-400">
                 {stats.avgScore.toFixed(0)}
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click to sort highest first
+              </p>
             </CardHeader>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+            onClick={() => {
+              setSortBy('riskReward');
+              setSortOrder('desc');
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setMinScore(0);
+              setSymbolFilter(null);
+            }}
+            style={{
+              outline: sortBy === 'riskReward' && sortOrder === 'desc'
+                ? '2px solid rgb(59, 130, 246)'
+                : 'none',
+            }}
+          >
             <CardHeader className="pb-2">
               <CardDescription>Avg R:R</CardDescription>
               <CardTitle className="text-3xl text-blue-600 dark:text-blue-400">
                 {stats.avgRiskReward.toFixed(1)}:1
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click to sort highest first
+              </p>
             </CardHeader>
           </Card>
         </div>
@@ -240,13 +314,14 @@ export default function RecommendationsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 value={sortBy}
-                onValueChange={(value) => setSortBy(value as 'score' | 'symbol' | 'confidence' | 'setup')}
+                onValueChange={(value) => setSortBy(value as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward')}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="score">Opportunity Score</SelectItem>
+                  <SelectItem value="riskReward">Risk:Reward Ratio</SelectItem>
                   <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
                   <SelectItem value="confidence">Confidence Level</SelectItem>
                   <SelectItem value="setup">Setup Type</SelectItem>
@@ -321,9 +396,11 @@ export default function RecommendationsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">Any Score</SelectItem>
+                  <SelectItem value="30">30+ (All)</SelectItem>
+                  <SelectItem value="40">40+ (Fair)</SelectItem>
+                  <SelectItem value="50">50+ (Good)</SelectItem>
                   <SelectItem value="60">60+ (Medium+)</SelectItem>
                   <SelectItem value="75">75+ (High)</SelectItem>
-                  <SelectItem value="85">85+ (Very High)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -331,6 +408,30 @@ export default function RecommendationsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Active Symbol Filter Indicator */}
+      {symbolFilter && (
+        <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/10 dark:border-purple-900">
+          <CardContent className="pt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-purple-700 dark:text-purple-300">
+                Filtered by Symbol: {symbolFilter}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                Showing {recommendations.filter(r => r.symbol === symbolFilter).length} recommendation(s)
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSymbolFilter(null)}
+              className="text-purple-700 dark:text-purple-300"
+            >
+              Clear Filter
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       {recommendations.length === 0 && !loading && !error && (
@@ -351,7 +452,10 @@ export default function RecommendationsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4">
-        {recommendations.map((recommendation) => (
+        {(symbolFilter
+          ? recommendations.filter(r => r.symbol === symbolFilter)
+          : recommendations
+        ).map((recommendation) => (
           <RecommendationCard key={recommendation.id} recommendation={recommendation} />
         ))}
       </div>
