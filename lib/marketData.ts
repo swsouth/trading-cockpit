@@ -3,19 +3,22 @@
  *
  * Fetches real-time quotes and historical OHLC data for stocks
  * with intelligent caching and database-first approach
+ *
+ * NO MOCK DATA - Production-ready only
  */
 
 import { Quote, Candle } from './types';
-import { generateMockCandles } from './mockData';
 import { createClient } from '@supabase/supabase-js';
 
-const FMP_API_KEY = process.env.FMP_API_KEY;
+// API Base URLs
+const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
-const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 
-// Environment detection
-const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === 'false';
+// Helper functions to get API keys at runtime
+const getTwelveDataApiKey = () => process.env.TWELVE_DATA_API_KEY;
+const getFmpApiKey = () => process.env.FMP_API_KEY;
+const getFinnhubApiKey = () => process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 
 // In-memory cache with timestamps
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -63,13 +66,12 @@ async function getStoredCandles(symbol: string, days: number = 60): Promise<Cand
 
     // Transform to Candle format
     return data.map(record => ({
-      date: record.date,
+      timestamp: record.date,
       open: parseFloat(record.open),
       high: parseFloat(record.high),
       low: parseFloat(record.low),
       close: parseFloat(record.close),
       volume: parseInt(record.volume),
-      adjClose: record.adjusted_close ? parseFloat(record.adjusted_close) : undefined,
     }));
   } catch (error) {
     console.error(`Error fetching stored candles for ${symbol}:`, error);
@@ -78,11 +80,130 @@ async function getStoredCandles(symbol: string, days: number = 60): Promise<Cand
 }
 
 /**
- * Get daily OHLC data - Database first, then FMP API fallback
+ * Fetch historical OHLC data from Twelve Data API
+ */
+async function fetchTwelveDataCandles(symbol: string, days: number = 365): Promise<Candle[]> {
+  const apiKey = getTwelveDataApiKey();
+  if (!apiKey) {
+    throw new Error('Twelve Data API key not configured');
+  }
+
+  try {
+    // Twelve Data time_series endpoint
+    // outputsize: number of data points to return (max 5000)
+    // adjust=none: CRITICAL - Get unadjusted prices to match actual market levels
+    const url = `${TWELVE_DATA_BASE_URL}/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&adjust=none&apikey=${apiKey}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Twelve Data API rate limit exceeded');
+      }
+      throw new Error(`Twelve Data API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Check for API errors
+    if (data.status === 'error') {
+      throw new Error(`Twelve Data error: ${data.message || 'Unknown error'}`);
+    }
+
+    if (!data.values || !Array.isArray(data.values)) {
+      throw new Error(`Invalid response from Twelve Data for ${symbol}`);
+    }
+
+    // Transform to Candle format
+    // Twelve Data returns newest first, so we need to reverse
+    const candles: Candle[] = data.values
+      .map((bar: any) => ({
+        timestamp: bar.datetime,
+        open: parseFloat(bar.open),
+        high: parseFloat(bar.high),
+        low: parseFloat(bar.low),
+        close: parseFloat(bar.close),
+        volume: parseInt(bar.volume) || 0,
+      }))
+      .reverse(); // Reverse to chronological order (oldest first)
+
+    if (candles.length === 0) {
+      throw new Error(`No data returned from Twelve Data for ${symbol}`);
+    }
+
+    console.log(`✅ Fetched ${candles.length} candles for ${symbol} from Twelve Data`);
+    return candles;
+  } catch (error) {
+    console.error(`Error fetching candles from Twelve Data for ${symbol}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch historical OHLC data from FMP API
+ */
+async function fetchFmpCandles(symbol: string): Promise<Candle[]> {
+  const fmpKey = getFmpApiKey();
+  if (!fmpKey) {
+    throw new Error('FMP API key not configured');
+  }
+
+  try {
+    const url = `${FMP_BASE_URL}/historical-price-full/${symbol}?apikey=${fmpKey}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('FMP API rate limit exceeded');
+      }
+      throw new Error(`FMP API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Check for API errors
+    if (data['Error Message'] || data.error) {
+      const errorMsg = data['Error Message'] || data.error;
+      throw new Error(`FMP error for ${symbol}: ${errorMsg}`);
+    }
+
+    if (!data.historical || !Array.isArray(data.historical)) {
+      throw new Error(`Invalid response from FMP for ${symbol}`);
+    }
+
+    // Transform to Candle format
+    const candles: Candle[] = data.historical.map((bar: any) => ({
+      timestamp: bar.date,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume,
+    }));
+
+    if (candles.length === 0) {
+      throw new Error(`No data returned from FMP for ${symbol}`);
+    }
+
+    // Sort by timestamp (chronological order - oldest first)
+    candles.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    console.log(`✅ Fetched ${candles.length} candles for ${symbol} from FMP`);
+    return candles;
+  } catch (error) {
+    console.error(`Error fetching candles from FMP for ${symbol}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get daily OHLC data - Database first, then Twelve Data, then FMP API fallback
  *
  * @param symbol - Stock ticker symbol
  * @param source - 'database' (default) or 'api' - force specific source
  * @returns Array of candle data
+ * @throws Error if no data available from any source
  */
 export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 'auto' = 'auto'): Promise<Candle[]> {
   // Check cache first
@@ -103,84 +224,49 @@ export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 
 
     if (source === 'database') {
       // Database explicitly requested but not available
-      console.warn(`⚠️  No stored data for ${symbol}, falling back to mock`);
-      if (isProduction) {
-        throw new Error(`No historical data available for ${symbol}`);
-      }
-      return generateMockCandles(symbol);
+      throw new Error(`No historical data available in database for ${symbol}`);
     }
   }
 
-  // Fallback to FMP API (market scan use case)
-  if (!FMP_API_KEY) {
-    if (isProduction) {
-      throw new Error('FMP API key not configured. Please contact support.');
+  // Try Twelve Data API first (800 calls/day)
+  const twelveDataKey = getTwelveDataApiKey();
+  if (twelveDataKey) {
+    console.log(`🔄 Trying Twelve Data for ${symbol}...`);
+    try {
+      const candles = await fetchTwelveDataCandles(symbol, 365);
+      setCache(cacheKey, candles);
+      return candles;
+    } catch (error) {
+      console.warn(`Twelve Data failed for ${symbol}, trying FMP:`, error);
+      // Fall through to FMP
     }
-    console.warn('FMP API key not configured, using mock data for development');
-    return generateMockCandles(symbol);
+  } else {
+    console.log(`⚠️  TWELVE_DATA_API_KEY not set, skipping Twelve Data`);
+  }
+
+  // Fallback to FMP API (250 calls/day)
+  const fmpKey = getFmpApiKey();
+  if (!fmpKey) {
+    throw new Error(`No API keys configured (Twelve Data or FMP). Unable to fetch data for ${symbol}.`);
   }
 
   try {
-    // FMP stable endpoint - historical-price-eod/full
-    // This endpoint provides complete OHLC + volume data
-    const url = `${FMP_BASE_URL}/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_API_KEY}`;
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`FMP API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Check for API errors
-    if (data['Error Message'] || data.error) {
-      const errorMsg = data['Error Message'] || data.error;
-      console.warn(`Invalid symbol ${symbol}:`, errorMsg);
-      if (isProduction) {
-        throw new Error(`Unable to fetch data for ${symbol}: ${errorMsg}`);
-      }
-      return generateMockCandles(symbol);
-    }
-
-    // Parse the response (FMP returns array of {date, open, high, low, close, volume})
-    const candles: Candle[] = (data.historical || data).map((bar: any) => ({
-      date: bar.date,
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
-      volume: bar.volume,
-      adjClose: bar.adjClose,
-    }));
-
-    if (candles.length === 0) {
-      console.warn(`No candle data returned for ${symbol}`);
-      if (isProduction) {
-        throw new Error(`No price data available for ${symbol}`);
-      }
-      return generateMockCandles(symbol);
-    }
-
-    // Sort by date (most recent first) and reverse to get chronological order
-    candles.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    console.log(`✅ Fetched ${candles.length} candles for ${symbol} from FMP API`);
+    console.log(`🔄 Trying FMP for ${symbol}...`);
+    const candles = await fetchFmpCandles(symbol);
     setCache(cacheKey, candles);
     return candles;
   } catch (error) {
-    console.error(`Error fetching candles from FMP:`, error);
-
-    if (isProduction) {
-      throw new Error(`Failed to fetch market data for ${symbol}. Please try again later.`);
-    }
-    console.warn('Falling back to mock data for development');
-    return generateMockCandles(symbol);
+    // All sources failed
+    throw new Error(`Failed to fetch market data for ${symbol} from all sources (Database, Twelve Data, FMP). ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 /**
  * Get real-time quote - Finnhub API
+ *
+ * @param symbol - Stock ticker symbol
+ * @returns Quote data
+ * @throws Error if Finnhub API not configured or request fails
  */
 export async function getQuote(symbol: string): Promise<Quote> {
   // Check cache first
@@ -190,34 +276,20 @@ export async function getQuote(symbol: string): Promise<Quote> {
     return cached;
   }
 
-  if (!FINNHUB_API_KEY) {
-    if (isProduction) {
-      throw new Error('Finnhub API key not configured. Please contact support.');
-    }
-
-    // Return mock quote for development
-    console.warn(`Finnhub API key not configured, using mock quote for ${symbol}`);
-    const mockQuote: Quote = {
-      symbol,
-      price: 100 + Math.random() * 50,
-      change: (Math.random() - 0.5) * 10,
-      changePercent: (Math.random() - 0.5) * 5,
-      previousClose: 100,
-      high: 110,
-      low: 90,
-      open: 95,
-      volume: 1000000,
-      timestamp: Date.now(),
-    };
-    return mockQuote;
+  const finnhubKey = getFinnhubApiKey();
+  if (!finnhubKey) {
+    throw new Error('Finnhub API key not configured. Unable to fetch real-time quotes.');
   }
 
   try {
-    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${finnhubKey}`;
 
     const response = await fetch(url);
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Finnhub API rate limit exceeded');
+      }
       throw new Error(`Finnhub API error: ${response.status}`);
     }
 
@@ -225,63 +297,24 @@ export async function getQuote(symbol: string): Promise<Quote> {
 
     // Check for valid data
     if (!data.c || data.c === 0) {
-      console.warn(`No quote data for ${symbol} from Finnhub`);
-      if (isProduction) {
-        throw new Error(`Unable to fetch quote for ${symbol}`);
-      }
-
-      // Return mock data for development
-      const mockQuote: Quote = {
-        symbol,
-        price: 100,
-        change: 0,
-        changePercent: 0,
-        previousClose: 100,
-        high: 100,
-        low: 100,
-        open: 100,
-        volume: 0,
-        timestamp: Date.now(),
-      };
-      return mockQuote;
+      throw new Error(`No quote data available for ${symbol} from Finnhub`);
     }
 
     const quote: Quote = {
       symbol,
       price: data.c, // current price
-      change: data.d, // change
       changePercent: data.dp, // change percent
       previousClose: data.pc, // previous close
       high: data.h, // high
       low: data.l, // low
       open: data.o, // open
       volume: 0, // Finnhub doesn't provide volume in quote endpoint
-      timestamp: data.t * 1000, // convert to milliseconds
+      timestamp: new Date(data.t * 1000).toISOString(), // convert unix timestamp to ISO string
     };
 
     setCache(cacheKey, quote);
     return quote;
   } catch (error) {
-    console.error(`Error fetching quote from Finnhub:`, error);
-
-    if (isProduction) {
-      throw new Error(`Failed to fetch quote for ${symbol}. Please try again later.`);
-    }
-
-    // Return mock data for development
-    console.warn('Falling back to mock quote for development');
-    const mockQuote: Quote = {
-      symbol,
-      price: 100,
-      change: 0,
-      changePercent: 0,
-      previousClose: 100,
-      high: 100,
-      low: 100,
-      open: 100,
-      volume: 0,
-      timestamp: Date.now(),
-    };
-    return mockQuote;
+    throw new Error(`Failed to fetch quote for ${symbol}. ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
