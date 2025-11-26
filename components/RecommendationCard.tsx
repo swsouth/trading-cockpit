@@ -16,7 +16,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
-import TradingViewModal from './TradingViewModal';
+import ChartModal from './ChartModal';
 import { getCompanyName } from '@/lib/stockNames';
 
 interface RecommendationCardProps {
@@ -288,12 +288,11 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
         </div>
       </CardContent>
 
-      {/* TradingView Chart Modal */}
-      <TradingViewModal
+      {/* Candlestick Chart Modal */}
+      <ChartModal
         symbol={symbol}
         isOpen={isChartOpen}
         onClose={() => setIsChartOpen(false)}
-        currentPrice={current_price}
       />
     </Card>
   );
