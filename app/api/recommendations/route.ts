@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : 0;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 30;
     const activeOnly = searchParams.get('activeOnly') !== 'false'; // default true
-    const sortBy = searchParams.get('sortBy') as 'score' | 'symbol' | 'confidence' | 'setup' || 'score';
+    const sortBy = searchParams.get('sortBy') as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward' || 'score';
     const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' || 'desc';
 
     // Map sort options to database columns
@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
       score: 'opportunity_score',
       symbol: 'symbol',
       confidence: 'confidence_level',
-      setup: 'setup_type'
+      setup: 'setup_type',
+      riskReward: 'risk_reward_ratio'
     };
 
     const sortColumn = sortColumnMap[sortBy] || 'opportunity_score';
@@ -119,6 +120,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate stats
+    const maxScore = recommendations && recommendations.length > 0
+      ? Math.max(...recommendations.map(r => r.opportunity_score))
+      : 0;
+
+    const maxRiskReward = recommendations && recommendations.length > 0
+      ? Math.max(...recommendations.map(r => r.risk_reward_ratio))
+      : 0;
+
+    console.log('📊 Calculated max values:', { maxScore, maxRiskReward, count: recommendations?.length });
+
     const stats = {
       total: recommendations?.length || 0,
       byType: {
@@ -136,7 +147,13 @@ export async function GET(request: NextRequest) {
       avgRiskReward: recommendations && recommendations.length > 0
         ? recommendations.reduce((sum, r) => sum + r.risk_reward_ratio, 0) / recommendations.length
         : 0,
+      maxScore,
+      maxRiskReward,
+      topScoreSymbol: recommendations?.find(r => r.opportunity_score === maxScore)?.symbol || null,
+      topRiskRewardSymbol: recommendations?.find(r => r.risk_reward_ratio === maxRiskReward)?.symbol || null,
     };
+
+    console.log('📊 Final stats object:', stats);
 
     // Get the latest scan date
     const latestScanDate = recommendations && recommendations.length > 0
