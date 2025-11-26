@@ -24,7 +24,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export async function storePriceData(
   symbol: string,
   candles: Candle[],
-  dataSource: string = 'fmp'
+  dataSource: string = 'twelvedata'
 ): Promise<number> {
   if (!candles || candles.length === 0) {
     console.warn(`⚠️  No candles to store for ${symbol}`);
@@ -35,13 +35,13 @@ export async function storePriceData(
     // Transform candles to database records
     const priceRecords = candles.map(candle => ({
       symbol: symbol.toUpperCase(),
-      date: candle.date,
+      date: candle.timestamp,
       open: candle.open,
       high: candle.high,
       low: candle.low,
       close: candle.close,
       volume: candle.volume,
-      adjusted_close: candle.adjClose || candle.close,
+      adjusted_close: candle.close, // Use close price as adjusted close
       data_source: dataSource,
     }));
 
@@ -71,7 +71,7 @@ export async function storePriceData(
  */
 export async function storePriceDataBatch(
   priceDataMap: Map<string, Candle[]>,
-  dataSource: string = 'fmp'
+  dataSource: string = 'twelvedata'
 ): Promise<{ total: number; successful: number; failed: number }> {
   const stats = {
     total: priceDataMap.size,
@@ -81,7 +81,8 @@ export async function storePriceDataBatch(
 
   console.log(`\n💾 Storing price data for ${stats.total} symbols...`);
 
-  for (const [symbol, candles] of priceDataMap.entries()) {
+  // Convert Map entries to array to avoid downlevelIteration requirement
+  for (const [symbol, candles] of Array.from(priceDataMap.entries())) {
     const stored = await storePriceData(symbol, candles, dataSource);
 
     if (stored > 0) {
@@ -145,13 +146,12 @@ export async function getStoredPriceData(
 
     // Transform database records to Candle format
     return data.map(record => ({
-      date: record.date,
+      timestamp: record.date,
       open: parseFloat(record.open),
       high: parseFloat(record.high),
       low: parseFloat(record.low),
       close: parseFloat(record.close),
       volume: parseInt(record.volume),
-      adjClose: record.adjusted_close ? parseFloat(record.adjusted_close) : undefined,
     }));
   } catch (error) {
     console.error(`Error fetching stored price data for ${symbol}:`, error);
