@@ -264,13 +264,15 @@ export default function RecommendationsPage() {
             }}
           >
             <CardHeader className="pb-2">
-              <CardDescription>Avg Score</CardDescription>
+              <CardDescription>Highest Score</CardDescription>
               <CardTitle className="text-3xl text-purple-600 dark:text-purple-400">
-                {stats.avgScore.toFixed(0)}
+                {stats.maxScore.toFixed(0)}
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Click to sort highest first
-              </p>
+              {stats.topScoreSymbol && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.topScoreSymbol}
+                </p>
+              )}
             </CardHeader>
           </Card>
           <Card
@@ -290,13 +292,15 @@ export default function RecommendationsPage() {
             }}
           >
             <CardHeader className="pb-2">
-              <CardDescription>Avg R:R</CardDescription>
+              <CardDescription>Highest R:R</CardDescription>
               <CardTitle className="text-3xl text-blue-600 dark:text-blue-400">
-                {stats.avgRiskReward.toFixed(1)}:1
+                {stats.maxRiskReward.toFixed(1)}:1
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Click to sort highest first
-              </p>
+              {stats.topRiskRewardSymbol && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.topRiskRewardSymbol}
+                </p>
+              )}
             </CardHeader>
           </Card>
         </div>
