@@ -6,7 +6,7 @@ import { CandlestickChart } from './CandlestickChart';
 import { Candle, ChannelDetectionResult } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { getDailyOHLC } from '@/lib/marketData';
-import { detectChannels } from '@/lib/analysis';
+import { detectChannel } from '@/lib/analysis';
 
 interface ChartModalProps {
   symbol: string;
@@ -40,8 +40,8 @@ export default function ChartModal({ symbol, isOpen, onClose }: ChartModalProps)
 
       setCandles(ohlcData);
 
-      // Detect channels
-      const channelResult = detectChannels(ohlcData);
+      // Detect channel
+      const channelResult = detectChannel(ohlcData);
       setChannel(channelResult);
     } catch (err) {
       console.error('Error fetching chart data:', err);
