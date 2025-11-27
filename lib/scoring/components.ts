@@ -7,6 +7,7 @@
 import { Candle, ChannelDetectionResult, PatternDetectionResult, DetectedPattern } from '../types';
 import { VolumeAnalysis, RiskRewardMetrics } from './types';
 import { analyzeTrend, calculateChannelSlope, calculateRSI } from './indicators';
+import { AbsorptionPattern } from '../orderflow/types';
 
 /**
  * Score trend strength (0-30 points)
@@ -267,4 +268,36 @@ export function calculateRiskRewardMetrics(
     riskPercent,
     rewardPercent,
   };
+}
+
+/**
+ * Score absorption pattern (0-10 points)
+ *
+ * Absorption occurs when high volume doesn't move price (action without reaction).
+ * This reveals hidden institutional buying/selling before price moves.
+ *
+ * Based on Jay Ortani's strategy: "When I see 50K shares sold and price doesn't move,
+ * I know institutions are absorbing that supply."
+ *
+ * @param absorption - Detected absorption pattern
+ * @param setupType - Trade setup type (long/short)
+ * @returns Score 0-10
+ */
+export function scoreAbsorption(
+  absorption: AbsorptionPattern,
+  setupType: 'long' | 'short'
+): number {
+  if (absorption.type === 'none') return 0;
+
+  // Only score absorption if it aligns with our setup direction
+  if (setupType === 'long' && absorption.type !== 'buying') return 0;
+  if (setupType === 'short' && absorption.type !== 'selling') return 0;
+
+  // High confidence absorption adds up to 10 points
+  const baseScore = (absorption.confidence / 100) * 10;
+
+  // Bonus points if large orders are involved (more reliable)
+  const largeOrderBonus = absorption.largeOrdersInvolved > 0 ? 1 : 0;
+
+  return Math.min(10, Math.round(baseScore + largeOrderBonus));
 }

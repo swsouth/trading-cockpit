@@ -79,7 +79,9 @@
       "Bash(__NEW_LINE__ if grep -q \"^ALPACA_BASE_URL=\" .env.local)",
       "Bash(__NEW_LINE__ echo \"\")",
       "Bash(timeout 10 bash -c:*)",
-      "Bash(git grep:*)"
+      "Bash(git grep:*)",
+      "mcp__youtube-transcript__get_transcripts",
+      "Bash(I know institutions are absorbing that supply.\"\n\nNext steps:\n- Add Level 2 market depth data integration\n- Implement stock personality profiles\n- Add enhanced level significance scoring\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

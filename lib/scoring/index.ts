@@ -18,8 +18,10 @@ import {
   scoreRiskReward,
   scoreMomentum,
   calculateRiskRewardMetrics,
+  scoreAbsorption,
 } from './components';
 import { analyzeVolume, analyzeIntradayVolume } from './indicators';
+import { detectAbsorption } from '../orderflow/absorption';
 
 /**
  * Calculate comprehensive opportunity score (0-100)
@@ -43,10 +45,14 @@ export function calculateOpportunityScore(input: ScoringInput): OpportunityScore
   const riskRewardScore = scoreRiskReward(rrMetrics);
   const momentumScore = scoreMomentum(candles, setupType, channel.status);
 
-  // Sum all components
+  // Detect absorption pattern (Jay Ortani's edge)
+  const absorption = detectAbsorption(candles, volume);
+  const absorptionScoreValue = scoreAbsorption(absorption, setupType);
+
+  // Sum all components (with absorption as optional bonus)
   const totalScore = Math.min(
     100,
-    trendStrength + patternQuality + volumeScore + riskRewardScore + momentumScore
+    trendStrength + patternQuality + volumeScore + riskRewardScore + momentumScore + absorptionScoreValue
   );
 
   // Calculate confidence level
@@ -59,6 +65,7 @@ export function calculateOpportunityScore(input: ScoringInput): OpportunityScore
     volumeScore,
     riskRewardScore,
     momentumScore,
+    ...(absorptionScoreValue > 0 && { absorptionScore: absorptionScoreValue }),
   };
 
   // Create human-readable breakdown
@@ -68,6 +75,9 @@ export function calculateOpportunityScore(input: ScoringInput): OpportunityScore
     volumeScore: `${volumeScore}/20 - ${getVolumeLabel(volume.status)}`,
     riskRewardScore: `${riskRewardScore}/15 - ${getRiskRewardLabel(rrMetrics.ratio)}`,
     momentumScore: `${momentumScore}/10 - ${getMomentumLabel(momentumScore)}`,
+    ...(absorptionScoreValue > 0 && {
+      absorptionScore: `${absorptionScoreValue}/10 - ${absorption.description}`,
+    }),
   };
 
   return {

@@ -49,6 +49,7 @@ export interface ScoringComponents {
   volumeScore: number;      // 0-20 points
   riskRewardScore: number;  // 0-15 points
   momentumScore: number;    // 0-10 points
+  absorptionScore?: number; // 0-10 points (optional - requires order flow data)
 }
 
 /**
@@ -64,6 +65,7 @@ export interface OpportunityScore {
     volumeScore: string;
     riskRewardScore: string;
     momentumScore: string;
+    absorptionScore?: string; // Optional - only if absorption detected
   };
 }
 
