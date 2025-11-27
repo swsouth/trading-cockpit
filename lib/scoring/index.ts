@@ -19,7 +19,7 @@ import {
   scoreMomentum,
   calculateRiskRewardMetrics,
 } from './components';
-import { analyzeVolume } from './indicators';
+import { analyzeVolume, analyzeIntradayVolume } from './indicators';
 
 /**
  * Calculate comprehensive opportunity score (0-100)
