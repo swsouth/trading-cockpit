@@ -125,6 +125,11 @@ async function analyzeIntradayStock(
       return null; // No valid setup
     }
 
+    // Type guard: Only 'long' or 'short' setups are actionable
+    if (recommendation.setup.type === 'none') {
+      return null;
+    }
+
     // Calculate opportunity score with intraday-specific volume normalization
     const score = calculateIntradayOpportunityScore(
       candles,
@@ -159,7 +164,7 @@ async function analyzeIntradayStock(
       scan_timestamp: new Date().toISOString(),
       channel_status: channelResult.status || null,
       pattern_detected: patternResult.mainPattern || null,
-      rsi: score.components.momentum || null,
+      rsi: score.components.momentumScore || null,
     };
 
   } catch (error) {
