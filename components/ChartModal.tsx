@@ -119,13 +119,13 @@ export default function ChartModal({ symbol, isOpen, onClose }: ChartModalProps)
                   <div>
                     <div className="text-xs text-muted-foreground">Channel Width</div>
                     <div className="text-sm font-bold">
-                      {typeof channel.channelWidth === 'number' ? `${channel.channelWidth.toFixed(1)}%` : '—'}
+                      {typeof channel.widthPct === 'number' ? `${channel.widthPct.toFixed(1)}%` : '—'}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Position</div>
                     <div className="text-sm font-bold capitalize">
-                      {channel.pricePosition ? channel.pricePosition.replace(/_/g, ' ') : '—'}
+                      {channel.status ? channel.status.replace(/_/g, ' ') : '—'}
                     </div>
                   </div>
                 </div>
