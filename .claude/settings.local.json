@@ -78,7 +78,8 @@
       "Bash(__NEW_LINE__ if grep -q \"^ALPACA_SECRET_KEY=\" .env.local)",
       "Bash(__NEW_LINE__ if grep -q \"^ALPACA_BASE_URL=\" .env.local)",
       "Bash(__NEW_LINE__ echo \"\")",
-      "Bash(timeout 10 bash -c:*)"
+      "Bash(timeout 10 bash -c:*)",
+      "Bash(git grep:*)"
     ],
     "deny": [],
     "ask": []
