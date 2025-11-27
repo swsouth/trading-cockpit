@@ -7,10 +7,3 @@
 
 [build.environment]
   NODE_VERSION = "18"
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-# Note: Scheduled functions are configured in Netlify UI or via netlify.toml
-# with proper syntax. See: https://docs.netlify.com/functions/scheduled-functions/
