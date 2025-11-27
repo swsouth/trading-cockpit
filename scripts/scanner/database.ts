@@ -26,12 +26,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 /**
  * Get active stocks from scan universe
+ * Only returns stocks with status='active' (excludes paused/removed)
  */
 export async function getActiveStocks(): Promise<string[]> {
   const { data, error } = await supabase
     .from('scan_universe')
     .select('symbol')
-    .eq('is_active', true)
+    .eq('status', 'active')
     .order('symbol');
 
   if (error) {

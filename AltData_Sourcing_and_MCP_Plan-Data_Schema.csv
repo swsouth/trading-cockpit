@@ -1,0 +1,13 @@
+Table,Key Fields,Update,Derived Features
+price_bars,"ticker, date, ohlcv",daily,"momentum, vol, drawdown"
+fundamentals,"ticker, fiscal_qtr, rev, eps, margins",qtrly,"growth rates, z-scores"
+sentiment_news,"ticker, ts, polarity, src",hourly,"rolling sentiment, event flags"
+mobility,"region, venue_id, footfall, dwell_time",daily,YoY traffic delta
+web_activity,"domain, rank, visits",daily,demand proxy
+jobs,"company, role, postings, skill",daily,hiring intensity
+shipping,"port, vessels_waiting, days_delay",daily,logistics stress index
+weather_energy,"region, degree_days, outages",daily,utility demand anomaly
+onchain,"asset, addr_active, flows_in/out",hourly,"netflow, leverage index"
+esg_risk,"asset_id, lat, lon, hazard_score",monthly,physical risk factor
+macro,"series_id, value, date",daily,regime states
+execution_trades,"symbol, side, qty, pnl",intraday,model calibration feedback

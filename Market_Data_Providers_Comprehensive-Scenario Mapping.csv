@@ -1,0 +1,11 @@
+Scenario / Task,Primary Providers,Backups,Why,Notes
+Nightly EOD append (100–500 tickers),"Twelve Data, FMP","Polygon (paid), MarketData.app (delayed)",Twelve Data 800/day free + global; FMP 250/day,Batch by 100s; handle retries
+Intraday event study (US stocks),Polygon,"IEX Cloud, Databento",Tick-accurate trades/quotes; news,Needs paid tier for RPM
+Valuation/factor modeling,"FMP, Finnhub",Alpha Vantage (fundamentals),Statements + analyst trends,Join to bars by calendar
+Global multi-asset dashboard,Twelve Data,"Polygon, Alpha Vantage",Unified schema across stocks/FX/crypto,Sockets for live tiles
+Crypto venue-accurate backtest,CoinAPI,"Binance/Kraken (direct), Kaiko",Precise OHLCV/trades,Costs scale with depth
+On-chain risk regime (BTC/ETH),Glassnode,"Messari, CryptoCompare",Behavioral on-chain metrics,Tag regimes for sizing
+Macro-aware equity models,Alpha Vantage (econ),FRED,Macro TS for regime states,"Avoid look-ahead, use release dates"
+Paper ? live execution loop,Alpaca (stocks),Binance/Kraken/Coinbase (crypto),Simple orders/positions via MCP,Risk_check tool + user confirm
+Retail demand nowcast,Mobility + Web (SafeGraph/Placer + SimilarWeb),Card/receipt data,Foot traffic + web visits lead sales,Costly but high signal
+Supply chain risk screen,MarineTraffic + Freightos FBX,EIA/NOAA (weather shocks),Port dwell + container rates,Build stress index

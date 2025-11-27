@@ -6,6 +6,7 @@ import {
   DetectedPattern,
   ChannelStatus,
 } from './types';
+import { calculateATR } from './scoring/indicators';
 
 export function detectChannel(
   candles: Candle[],
@@ -35,9 +36,19 @@ export function detectChannel(
   const width = high - low;
   const widthPct = width / mid;
 
-  const minChannelPct = 0.04;
-  const maxChannelPct = 0.2;
-  const touchTolerancePct = 0.02;
+  // Calculate ATR for volatility-aware thresholds
+  const atr = calculateATR(recentCandles, 14);
+  const currentPrice = recentCandles[recentCandles.length - 1].close;
+  const atrPercent = atr / currentPrice;
+
+  // ATR-normalized thresholds (replace fixed percentages)
+  // Touch tolerance: 0.3x ATR (tighter for precise detection)
+  // Near threshold: 0.5x ATR (where to consider "near" support/resistance)
+  // Max channel width: 10x ATR (beyond this = too choppy)
+  const touchTolerancePct = Math.max(0.3 * atrPercent, 0.005); // Min 0.5% for very low-vol stocks
+  const nearThresholdPct = Math.max(0.5 * atrPercent, 0.01);   // Min 1% for very low-vol stocks
+  const maxChannelPct = Math.min(10 * atrPercent, 0.25);       // Max 25% cap
+  const minChannelPct = Math.max(2 * atrPercent, 0.02);        // Min 2% or 2x ATR
 
   if (widthPct < minChannelPct || widthPct > maxChannelPct) {
     return {
@@ -76,7 +87,9 @@ export function detectChannel(
 
   const outOfBandPct = outOfBandCount / n;
 
-  if (supportTouches < 2 || resistanceTouches < 2 || outOfBandPct > 0.1) {
+  // Relaxed from 2+2 to 1+1 touches for better detection rate
+  // Relaxed out-of-band from 10% to 15% for more flexible channels
+  if (supportTouches < 1 || resistanceTouches < 1 || outOfBandPct > 0.15) {
     return {
       hasChannel: false,
       support,
@@ -93,13 +106,14 @@ export function detectChannel(
   const lastClose = recentCandles[recentCandles.length - 1].close;
   let status: ChannelStatus = 'inside';
 
+  // Use ATR-normalized thresholds for status determination
   if (lastClose < support * (1 - touchTolerancePct)) {
     status = 'broken_out';
   } else if (lastClose > resistance * (1 + touchTolerancePct)) {
     status = 'broken_out';
-  } else if (lastClose <= support * (1 + touchTolerancePct)) {
+  } else if (lastClose <= support * (1 + nearThresholdPct)) {
     status = 'near_support';
-  } else if (lastClose >= resistance * (1 - touchTolerancePct)) {
+  } else if (lastClose >= resistance * (1 - nearThresholdPct)) {
     status = 'near_resistance';
   } else {
     status = 'inside';

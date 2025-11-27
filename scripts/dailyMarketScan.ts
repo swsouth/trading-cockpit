@@ -17,11 +17,12 @@ import { Candle } from '@/lib/types';
 
 // Default configuration
 const DEFAULT_CONFIG: ScannerConfig = {
-  batchSize: 25,              // Process 25 stocks at a time
-  batchDelayMs: 2000,         // 2 second delay between batches
-  minScore: 0,                // Store ALL results (was 60, now 0 to show everything)
-  maxRecommendations: 1000,   // Store all results (was 30, now unlimited)
-  lookbackDays: 365,          // Use 1 year of historical data (FMP free tier allows 5 years!)
+  batchSize: 8,               // Process 8 stocks at a time (Twelve Data free tier: 8 calls/minute)
+  batchDelayMs: 65000,        // 65 second delay between batches (to respect rate limit)
+  minScore: 30,               // Show recommendations 30+ (low confidence but actionable)
+                              // UI will highlight scores <50 with red border as high-risk
+  maxRecommendations: 30,     // Store top 30 recommendations
+  lookbackDays: 365,          // Use 1 year of historical data (Twelve Data supports up to 5000 data points!)
                               // More data = better channel detection, pattern validation, trend analysis
 };
 

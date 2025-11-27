@@ -41,7 +41,7 @@ export function calculateOpportunityScore(input: ScoringInput): OpportunityScore
   const patternQuality = scorePatternQuality(pattern);
   const volumeScore = scoreVolumeConfirmation(volume);
   const riskRewardScore = scoreRiskReward(rrMetrics);
-  const momentumScore = scoreMomentum(candles, setupType);
+  const momentumScore = scoreMomentum(candles, setupType, channel.status);
 
   // Sum all components
   const totalScore = Math.min(
@@ -92,7 +92,7 @@ export function calculateConfidenceLevel(score: number): 'high' | 'medium' | 'lo
 }
 
 /**
- * Simplified scoring function that auto-calculates volume
+ * Simplified scoring function that auto-calculates volume (DAILY BARS)
  * This is useful when you don't have pre-calculated volume analysis
  */
 export function calculateOpportunityScoreSimple(
@@ -104,6 +104,31 @@ export function calculateOpportunityScoreSimple(
   stopLoss: number
 ): OpportunityScore {
   const volume = analyzeVolume(candles);
+
+  return calculateOpportunityScore({
+    candles,
+    channel,
+    pattern,
+    volume,
+    entryPrice,
+    targetPrice,
+    stopLoss,
+  });
+}
+
+/**
+ * Intraday scoring function with time-of-day volume adjustment (5-MIN BARS)
+ * Uses analyzeIntradayVolume for time-of-day normalized volume
+ */
+export function calculateIntradayOpportunityScore(
+  candles: Candle[],
+  channel: ChannelDetectionResult,
+  pattern: PatternDetectionResult,
+  entryPrice: number,
+  targetPrice: number,
+  stopLoss: number
+): OpportunityScore {
+  const volume = analyzeIntradayVolume(candles); // Time-of-day normalized
 
   return calculateOpportunityScore({
     candles,

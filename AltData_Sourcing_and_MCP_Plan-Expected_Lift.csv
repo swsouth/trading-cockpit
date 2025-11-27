@@ -1,0 +1,8 @@
+Signal Group,Alpha Horizon,Expected IR,Coverage
+Market/Fundamental,1–3 mo,0.20–0.30,95%
+Sentiment/News,1–10 d,0.10–0.20,80%
+Mobility/Web,2–6 wk,0.10–0.15,40–60%
+Job/Labor,1–2 qtr,0.05–0.10,70%
+Shipping/Energy,1–2 mo,0.05–0.10,30%
+On-Chain,1–3 wk,0.10–0.25,Top 100 crypto
+ESG/Climate,3–12 mo,0.05–0.10,60% large-caps

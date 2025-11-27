@@ -10,9 +10,13 @@
     "typecheck": "tsc --noEmit",
     "populate-universe": "npx tsx scripts/populateScanUniverse.ts",
     "scan-market": "npx tsx scripts/dailyMarketScan.ts",
+    "filter-earnings": "npx tsx scripts/filterEarnings.ts",
+    "fetch-transcript": "npx tsx scripts/fetchTranscript.ts",
     "test-scanner": "npx tsx scripts/testScanner.ts",
     "test-populate": "npx tsx scripts/populateTestRecommendations.ts",
-    "clean-recommendations": "npx tsx scripts/cleanAllRecommendations.ts"
+    "clean-recommendations": "npx tsx scripts/cleanAllRecommendations.ts",
+    "scan-intraday": "npx tsx scripts/intradayMarketScan.ts",
+    "test-intraday": "npx tsx scripts/testIntradayScanner.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

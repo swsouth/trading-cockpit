@@ -149,6 +149,7 @@ export function determineSetupType(
  * Check if a setup is actionable (worth trading)
  */
 export function isActionableSetup(setup: TradeSetup): boolean {
-  // Only trade high and medium confidence setups
-  return setup.type !== 'none' && setup.confidence !== 'low';
+  // Allow all setups (including low-confidence) to reach scoring stage
+  // Scoring system will filter weak setups, and UI will mark risky ones
+  return setup.type !== 'none';
 }

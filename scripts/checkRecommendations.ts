@@ -29,7 +29,7 @@ async function checkRecommendations() {
       });
 
       // Check scan dates
-      const uniqueDates = [...new Set(data.map(r => r.scan_date))];
+      const uniqueDates = Array.from(new Set(data.map(r => r.scan_date)));
       console.log(`\nUnique scan dates: ${uniqueDates.join(', ')}`);
 
       // Check if these are test data

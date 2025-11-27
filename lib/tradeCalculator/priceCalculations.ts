@@ -111,6 +111,10 @@ export function calculateLongStopLoss(
 ): StopLossCalculation {
   const atr = calculateATR(candles);
 
+  // Minimum stop distance: Never tighter than 1.0× ATR (prevents noise stop-outs)
+  const minStopDistance = atr * 1.0;
+  const minStopPrice = entryPrice - minStopDistance;
+
   if (channel.hasChannel) {
     // Use channel support for stop
     const channelStop = channel.support * 0.98; // 2% below support
@@ -118,10 +122,12 @@ export function calculateLongStopLoss(
 
     // Use the tighter of the two (less risk)
     if (channelStop > atrStop && (entryPrice - channelStop) / entryPrice < 0.08) {
-      // Channel stop is tighter and within 8% risk
+      // Apply minimum stop guardrail
+      const finalStop = Math.min(channelStop, minStopPrice);
+
       return {
-        price: channelStop,
-        reason: 'Below channel support',
+        price: finalStop,
+        reason: finalStop === channelStop ? 'Below channel support' : 'Min 1.0×ATR below entry (guardrail)',
         method: 'channel',
       };
     }
@@ -132,11 +138,14 @@ export function calculateLongStopLoss(
 
   // Ensure stop is reasonable (not more than 10% risk)
   const maxRisk = entryPrice * 0.10;
-  const stopPrice = Math.max(atrStop, entryPrice - maxRisk);
+  let stopPrice = Math.max(atrStop, entryPrice - maxRisk);
+
+  // Apply minimum stop guardrail (never wider than minStopPrice)
+  stopPrice = Math.min(stopPrice, minStopPrice);
 
   return {
     price: stopPrice,
-    reason: '2.5x ATR below entry',
+    reason: stopPrice === atrStop ? '2.5x ATR below entry' : 'Risk-adjusted stop with 1.0×ATR minimum',
     method: 'atr',
   };
 }
@@ -152,6 +161,10 @@ export function calculateShortStopLoss(
 ): StopLossCalculation {
   const atr = calculateATR(candles);
 
+  // Minimum stop distance: Never tighter than 1.0× ATR (prevents noise stop-outs)
+  const minStopDistance = atr * 1.0;
+  const minStopPrice = entryPrice + minStopDistance;
+
   if (channel.hasChannel) {
     // Use channel resistance for stop
     const channelStop = channel.resistance * 1.02; // 2% above resistance
@@ -159,10 +172,12 @@ export function calculateShortStopLoss(
 
     // Use the tighter of the two (less risk)
     if (channelStop < atrStop && (channelStop - entryPrice) / entryPrice < 0.08) {
-      // Channel stop is tighter and within 8% risk
+      // Apply minimum stop guardrail
+      const finalStop = Math.max(channelStop, minStopPrice);
+
       return {
-        price: channelStop,
-        reason: 'Above channel resistance',
+        price: finalStop,
+        reason: finalStop === channelStop ? 'Above channel resistance' : 'Min 1.0×ATR above entry (guardrail)',
         method: 'channel',
       };
     }
@@ -173,11 +188,14 @@ export function calculateShortStopLoss(
 
   // Ensure stop is reasonable (not more than 10% risk)
   const maxRisk = entryPrice * 0.10;
-  const stopPrice = Math.min(atrStop, entryPrice + maxRisk);
+  let stopPrice = Math.min(atrStop, entryPrice + maxRisk);
+
+  // Apply minimum stop guardrail (never tighter than minStopPrice)
+  stopPrice = Math.max(stopPrice, minStopPrice);
 
   return {
     price: stopPrice,
-    reason: '2.5x ATR above entry',
+    reason: stopPrice === atrStop ? '2.5x ATR above entry' : 'Risk-adjusted stop with 1.0×ATR minimum',
     method: 'atr',
   };
 }

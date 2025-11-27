@@ -1,0 +1,17 @@
+Tier,Category,Data Type / Example,Update Frequency,Provider(s),Cost,Integration Route
+A,Mobility & Foot Traffic,Store/mall/transit footfall,Daily,"SafeGraph, Placer.ai, Google Mobility",$1–2k/mo,foot_traffic_mcp
+A,Web & App Activity,"App ranks, web visits",Hourly–Daily,"SimilarWeb, AppAnnie, Data.ai",$500–2k/mo,web_traffic_mcp
+A,Job Postings,"Hiring velocity, skills",Daily,"LinkUp, Revelio Labs, Indeed",$500–1k/mo,jobs_mcp
+A,Insider & Buyback Filings,"SEC Form 4, 8-K",Daily,"SEC EDGAR, FMP",Free,polygon_mcp / fmp_mcp
+A,News & Sentiment,"Headlines, Reddit/Twitter tone",Minutes–Hourly,"Finnhub, Aylien, LunarCrush",Free–$1k/mo,finnhub_mcp
+A,Outages / Reliability,"Status pages, BGP, Pingdom",Hourly,"Downdetector, Cloudflare Radar",Free,status_mcp
+B,Shipping & Supply Chain,"Port dwell, AIS, container rates",Daily–Weekly,"MarineTraffic, Freightos FBX",$500+,shipping_mcp
+B,Energy & Weather,"Temp, storms, outages",Hourly–Daily,"NOAA, EIA, OpenWeather",Free–$500,weather_mcp
+B,Card & Spend,"Category receipts, sales",Weekly,"Facteus, Earnest Analytics",$2–5k/mo,consumer_spend_mcp
+B,On-Chain (Crypto),"Active addresses, inflows",Hourly–Daily,"Glassnode, Nansen",Free–$500,glassnode_mcp
+C,Patent & Trademark,Product pipeline proxy,Monthly,"USPTO, PatentsView",Free,ip_filing_mcp
+C,Regulatory & Legal,"Court filings, approvals",Weekly,"CourtListener, GovInfo",Free,legal_mcp
+C,Climate & ESG,"Wildfire, flood, drought maps",Weekly–Monthly,"NASA FIRMS, NOAA",Free,geo_esg_mcp
+C,Macro & Flows,"ETF flows, repo, basis",Daily,"FRED, EPFR",Free–$2k/mo,econ_mcp
+C,Alt Search / Reviews,"Product reviews, sentiment",Daily,"Amazon, Trustpilot",Free,review_mcp
+C,Developer Ecosystem,"GitHub commits, stars",Daily,GitHub API,Free,github_mcp

@@ -1,0 +1,25 @@
+MCP Server,Backed By (Vendor),Tool Name,Purpose / Input,Output / Notes
+polygon_mcp,Polygon.io,get_aggregates,"(ticker,timespan,from,to,adjusted)",OHLCV bars
+polygon_mcp,Polygon.io,get_trades,"(ticker,date,limit,cursor)",Tick trades
+polygon_mcp,Polygon.io,get_news,"(ticker,limit,order)",Company/news feed
+alpha_vantage_mcp,Alpha Vantage,time_series_daily,"(symbol,adjusted,outputsize)",Daily bars
+alpha_vantage_mcp,Alpha Vantage,technical_indicator,"(symbol,function,interval,time_period)",RSI/MACD/etc
+twelve_data_mcp,Twelve Data,time_series,"(symbol,interval,outputsize)",Global OHLCV
+alpaca_mcp,Alpaca,place_order,"(symbol,qty,side,type,params)",Order id
+alpaca_mcp,Alpaca,get_bars,"(symbol,timeframe,start,end)",Bars
+fmp_mcp,FMP,income_statement,"(symbol,period)",IS rows
+fmp_mcp,FMP,historical_price_full,"(symbol,seriestype)",History
+finnhub_mcp,Finnhub,recommendation_trends,(symbol),Analyst trends
+finnhub_mcp,Finnhub,news_sentiment,"(symbol,from,to)",Sentiment
+coinapi_mcp,CoinAPI,ohlcv_history,"(symbol_id,period,start,end)",Venue-accurate candles
+coingecko_mcp,CoinGecko,market_chart,"(id,vs_currency,days)",Price/volume
+cryptocompare_mcp,CryptoCompare,histoday,"(fsym,tsym,limit,toTs)",Daily candles
+glassnode_mcp,Glassnode,metric,"(asset,endpoint,start,end)",On-chain metric
+binance_mcp,Binance,klines,"(symbol,interval,startTime,endTime)",Candles
+kraken_mcp,Kraken,ohlc,"(pair,interval,since)",Candles
+coinbase_mcp,Coinbase,candles,"(product_id,granularity,start,end)",Candles
+fred_mcp,FRED,macro_series,(series_id),Macro TS
+weather_mcp,NOAA/OpenWeather,weather_anomaly,"(region,date_range)",Degree-day anomalies
+mobility_mcp,SafeGraph/Placer,venue_traffic,"(venue_id,date)",Footfall
+shipping_mcp,MarineTraffic/FBX,port_dwell,"(port,date_range)",Dwell time index
+legal_mcp,CourtListener,search_cases,"(query,date_range)",Dockets

@@ -7,3 +7,15 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Intraday scanner - runs every 5 minutes during market hours
+# Mon-Fri: 9:30 AM - 4:00 PM ET (13:30 - 20:00 UTC)
+# Schedule: */5 13-20 * * 1-5 (every 5 min, 1:30 PM - 8:00 PM UTC, Mon-Fri)
+[[functions]]
+  path = "/api/intraday-scan-cron"
+  schedule = "*/5 13-20 * * 1-5"
+  handler = "netlify/functions/intraday-scan-scheduled.handler"

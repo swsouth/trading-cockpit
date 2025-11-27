@@ -1,0 +1,5 @@
+Phase,Objective,Deliverables
+Phase 1 (0-30 days),Establish core data,"Polygon, FMP, Finnhub MCP; daily ETL; price_bars, fundamentals, sentiment_news"
+Phase 2 (30-60 days),Add external sensors,"Mobility, web, job, weather MCPs; YoY %, z-scores"
+Phase 3 (60-90 days),Add on-chain & ESG,"Glassnode, ESG, Shipping MCP; macro-context integration"
+Phase 4 (90+ days),Model refinement,Train multi-factor model; live feedback loop

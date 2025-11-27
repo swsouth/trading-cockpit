@@ -153,46 +153,91 @@ export function scoreRiskReward(metrics: RiskRewardMetrics): number {
 /**
  * Score momentum/RSI (0-10 points)
  *
- * RSI in "sweet spots" = more points
- * - For longs: RSI 30-50 (oversold to neutral)
- * - For shorts: RSI 50-70 (neutral to overbought)
- * - Extreme RSI (>70 or <30) can be risky
+ * Context-aware RSI scoring that rewards BOTH reversals AND continuations:
+ * - Reversal setups (near support/resistance): Favor oversold/overbought
+ * - Continuation setups (trending): Favor healthy momentum zones
+ *
+ * @param candles - Price candles
+ * @param setupType - 'long' or 'short'
+ * @param channelStatus - Price position ('near_support', 'near_resistance', 'inside', 'broken_out')
  */
 export function scoreMomentum(
   candles: Candle[],
-  setupType: 'long' | 'short' = 'long'
+  setupType: 'long' | 'short' = 'long',
+  channelStatus?: string
 ): number {
   const rsi = calculateRSI(candles);
 
+  // Determine if this is a reversal or continuation setup
+  const isReversal = (
+    (setupType === 'long' && channelStatus === 'near_support') ||
+    (setupType === 'short' && channelStatus === 'near_resistance')
+  );
+
   if (setupType === 'long') {
-    // For long setups
-    if (rsi >= 30 && rsi <= 40) {
-      return 10; // Sweet spot: oversold but turning
-    } else if (rsi >= 40 && rsi <= 50) {
-      return 8; // Good: neutral to slightly weak
-    } else if (rsi >= 50 && rsi <= 60) {
-      return 6; // OK: neutral to bullish
-    } else if (rsi >= 60 && rsi <= 70) {
-      return 4; // Caution: getting overbought
-    } else if (rsi > 70) {
-      return 2; // Risky: overbought
+    if (isReversal) {
+      // REVERSAL LONG (bounce off support)
+      // Favor oversold conditions
+      if (rsi >= 25 && rsi <= 35) {
+        return 10; // Sweet spot: oversold, ready to bounce
+      } else if (rsi > 35 && rsi <= 45) {
+        return 8; // Good: recovering from oversold
+      } else if (rsi > 45 && rsi <= 55) {
+        return 5; // Neutral: less conviction for reversal
+      } else if (rsi > 55) {
+        return 3; // Not oversold, weaker reversal signal
+      } else {
+        return 7; // Very oversold (<25), risky but possible
+      }
     } else {
-      return 5; // Very oversold (<30)
+      // CONTINUATION LONG (trending up or mid-channel)
+      // Favor healthy uptrend momentum
+      if (rsi >= 50 && rsi <= 60) {
+        return 10; // Sweet spot: healthy uptrend momentum
+      } else if (rsi > 60 && rsi <= 70) {
+        return 8; // Strong uptrend, still good
+      } else if (rsi > 70 && rsi <= 75) {
+        return 5; // Overbought but trend strong
+      } else if (rsi > 75) {
+        return 3; // Very overbought, risky
+      } else if (rsi >= 40 && rsi < 50) {
+        return 6; // Building momentum
+      } else {
+        return 4; // Weak momentum for continuation
+      }
     }
   } else {
-    // For short setups (inverted)
-    if (rsi >= 60 && rsi <= 70) {
-      return 10; // Sweet spot: overbought but turning
-    } else if (rsi >= 50 && rsi <= 60) {
-      return 8; // Good: neutral to slightly strong
-    } else if (rsi >= 40 && rsi <= 50) {
-      return 6; // OK: neutral to bearish
-    } else if (rsi >= 30 && rsi <= 40) {
-      return 4; // Caution: getting oversold
-    } else if (rsi < 30) {
-      return 2; // Risky: oversold
+    // SHORT SETUPS (mirror logic)
+    if (isReversal) {
+      // REVERSAL SHORT (rejection at resistance)
+      // Favor overbought conditions
+      if (rsi >= 65 && rsi <= 75) {
+        return 10; // Sweet spot: overbought, ready to drop
+      } else if (rsi >= 55 && rsi < 65) {
+        return 8; // Good: weakening from overbought
+      } else if (rsi >= 45 && rsi < 55) {
+        return 5; // Neutral: less conviction for reversal
+      } else if (rsi < 45) {
+        return 3; // Not overbought, weaker reversal signal
+      } else {
+        return 7; // Very overbought (>75), risky but possible
+      }
     } else {
-      return 5; // Very overbought (>70)
+      // CONTINUATION SHORT (trending down)
+      // Favor healthy downtrend momentum
+      if (rsi >= 40 && rsi <= 50) {
+        return 10; // Sweet spot: healthy downtrend momentum
+      } else if (rsi >= 30 && rsi < 40) {
+        return 8; // Strong downtrend, still good
+      } else if (rsi >= 25 && rsi < 30) {
+        return 5; // Oversold but trend strong
+      } else if (rsi < 25) {
+        return 3; // Very oversold, risky
+      } else if (rsi > 50 && rsi <= 60) {
+        return 6; // Losing momentum
+      } else {
+        return 4; // Weak momentum for continuation
+      }
     }
   }
 }

@@ -85,7 +85,7 @@ export function calculateATR(candles: Candle[], period = 14): number {
 }
 
 /**
- * Analyze volume relative to historical average
+ * Analyze volume relative to historical average (DAILY BARS)
  * @param candles - Array of candles
  * @returns Volume analysis result
  */
@@ -134,6 +134,94 @@ export function analyzeVolume(candles: Candle[]): VolumeAnalysis {
   return {
     last5DaysAvg,
     last30DaysAvg,
+    currentVolume,
+    volumeRatio,
+    status,
+  };
+}
+
+/**
+ * Analyze intraday volume with time-of-day normalization (5-MIN BARS)
+ *
+ * Problem: Raw volume comparison is biased by time-of-day
+ * - 9:35 AM bars naturally have 3x volume vs 2:00 PM
+ * - Comparing current 9:35 AM bar to 30-bar avg (mixed times) is misleading
+ *
+ * Solution: Compare current bar to same minute-of-day historical average
+ * - 9:35 AM bar compared to avg of all 9:35 AM bars in history
+ * - "Relative Volume by Time-of-Day" (RVOL_TOD)
+ *
+ * @param candles - Array of intraday candles (5-min bars)
+ * @returns Volume analysis result with time-of-day adjustment
+ */
+export function analyzeIntradayVolume(candles: Candle[]): VolumeAnalysis {
+  if (candles.length < 10) {
+    return {
+      last5DaysAvg: 0,
+      last30DaysAvg: 0,
+      currentVolume: 0,
+      volumeRatio: 1,
+      status: 'average',
+    };
+  }
+
+  const currentCandle = candles[candles.length - 1];
+  const currentVolume = currentCandle.volume || 0;
+
+  // Extract minute-of-day from current candle
+  // E.g., "2025-11-26T14:35:00Z" → minute 875 (9:35 AM ET = 14:35 UTC in our data)
+  const currentTimestamp = new Date(currentCandle.timestamp);
+  const currentHour = currentTimestamp.getUTCHours();
+  const currentMinute = currentTimestamp.getUTCMinutes();
+  const currentMinuteOfDay = currentHour * 60 + currentMinute;
+
+  // Find all historical bars from the same minute-of-day
+  const sameTimeCandles = candles.filter((c, idx) => {
+    // Skip current candle
+    if (idx === candles.length - 1) return false;
+
+    const ts = new Date(c.timestamp);
+    const hour = ts.getUTCHours();
+    const minute = ts.getUTCMinutes();
+    const minuteOfDay = hour * 60 + minute;
+
+    // Match same minute-of-day (±1 minute tolerance for alignment issues)
+    return Math.abs(minuteOfDay - currentMinuteOfDay) <= 1 && (c.volume || 0) > 0;
+  });
+
+  if (sameTimeCandles.length < 3) {
+    // Not enough historical data for this time - fall back to simple average
+    const last30Candles = candles.slice(-30).filter(c => (c.volume || 0) > 0);
+    const last30Avg = last30Candles.reduce((sum, c) => sum + (c.volume || 0), 0) / last30Candles.length;
+
+    return {
+      last5DaysAvg: last30Avg, // Not meaningful for intraday
+      last30DaysAvg: last30Avg,
+      currentVolume,
+      volumeRatio: last30Avg > 0 ? currentVolume / last30Avg : 1,
+      status: 'average',
+    };
+  }
+
+  // Calculate average volume for this specific minute-of-day
+  const sameTimeAvg = sameTimeCandles.reduce((sum, c) => sum + (c.volume || 0), 0) / sameTimeCandles.length;
+
+  // Volume ratio: current bar vs historical same-time average
+  const volumeRatio = sameTimeAvg > 0 ? currentVolume / sameTimeAvg : 1;
+
+  // Status based on relative volume
+  let status: 'high' | 'average' | 'low';
+  if (volumeRatio >= 1.5) {
+    status = 'high'; // 50% above normal for this time
+  } else if (volumeRatio >= 0.8) {
+    status = 'average';
+  } else {
+    status = 'low'; // 20% below normal for this time
+  }
+
+  return {
+    last5DaysAvg: sameTimeAvg, // Re-purpose: avg volume for this time-of-day
+    last30DaysAvg: sameTimeAvg, // Same (not using different periods for intraday)
     currentVolume,
     volumeRatio,
     status,

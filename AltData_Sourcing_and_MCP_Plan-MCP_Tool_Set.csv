@@ -1,0 +1,12 @@
+MCP Server,Purpose,Tools
+polygon_mcp,Market data,"get_aggregates, get_news, get_dividends"
+fmp_mcp,Fundamentals,"income_statement, balance_sheet, sec_filings"
+finnhub_mcp,Analyst & sentiment,"recommendation_trends, news_sentiment"
+glassnode_mcp,On-chain,"metric, flows, active_addresses"
+weather_mcp,Weather,"weather_anomaly, storm_alerts"
+mobility_mcp,Foot traffic,"venue_traffic, region_mobility"
+jobs_mcp,Labor,"job_postings(company, role)"
+shipping_mcp,Ports/logistics,"port_dwell(port), container_rate(route)"
+review_mcp,Product sentiment,review_sentiment(ticker)
+econ_mcp,Macro,macro_series(id)
+alpaca_mcp,Execution,"place_order, positions"

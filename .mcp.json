@@ -7,6 +7,44 @@
     "netlify": {
       "command": "cmd",
       "args": ["/c", "npx", "-y", "@netlify/mcp"]
+    },
+    "youtube-transcript": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@sinco-lab/mcp-youtube-transcript"]
+    },
+    "firecrawl": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      }
+    },
+    "exa": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "exa-mcp-server"],
+      "env": {
+        "EXA_API_KEY": "${EXA_API_KEY}"
+      }
+    },
+    "kaggle": {
+      "command": "cmd",
+      "args": ["/c", "kaggle-mcp"]
+    },
+    "twelvedata": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "python",
+        "-m",
+        "uv",
+        "tool",
+        "run",
+        "mcp-server-twelve-data@latest",
+        "-k",
+        "${TWELVE_DATA_API_KEY}",
+        "-u",
+        "${OPENAI_API_KEY}"
+      ]
     }
   }
 }
