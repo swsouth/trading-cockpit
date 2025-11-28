@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin } from 'lucide-react';
+import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin, Play } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
 
 interface IntradayOpportunity {
   id: string;
@@ -40,12 +41,14 @@ interface MarketStatus {
 export default function DayTraderPage() {
   const [opportunities, setOpportunities] = useState<IntradayOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
+  const [scannerRunning, setScannerRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
   // Filter opportunities by asset type
   const stockOpportunities = opportunities.filter(opp =>
@@ -66,7 +69,7 @@ export default function DayTraderPage() {
       const { data, error: fetchError } = await supabase
         .from('intraday_opportunities')
         .select('*')
-        .eq('user_id', user.id)
+        // .eq('user_id', user.id)  // Removed: Show system-generated opportunities to all users
         .eq('status', 'active')
         .gte('expires_at', new Date().toISOString())
         .order('opportunity_score', { ascending: false });
@@ -90,6 +93,79 @@ export default function DayTraderPage() {
       setMarketStatus(data);
     } catch (err) {
       console.error('Error fetching market status:', err);
+    }
+  };
+
+  // Run the intraday scanner manually
+  const runScanner = async () => {
+    if (!user) {
+      toast({
+        title: 'Not Logged In',
+        description: 'Please log in to run the scanner',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setScannerRunning(true);
+    setError(null);
+
+    try {
+      toast({
+        title: 'Scanner Starting',
+        description: 'Running intraday market scan...',
+      });
+
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch('/api/scan/intraday/manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Scanner failed');
+      }
+
+      if (data.skipped) {
+        toast({
+          title: 'Scanner Skipped',
+          description: data.message || data.reason || 'Market is closed',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Scanner Complete',
+          description: 'New opportunities have been found. Refreshing...',
+        });
+
+        // Refresh opportunities after scan completes
+        setTimeout(() => {
+          fetchOpportunities();
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('Error running scanner:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to run scanner';
+      setError(errorMessage);
+
+      toast({
+        title: 'Scanner Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setScannerRunning(false);
     }
   };
 
@@ -194,10 +270,20 @@ export default function DayTraderPage() {
           <h1 className="text-3xl font-bold">Day Trader</h1>
           <p className="text-muted-foreground">Live intraday setups • Auto-refreshing every 10s</p>
         </div>
-        <Button onClick={fetchOpportunities} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={runScanner} disabled={scannerRunning} variant="default">
+            {scannerRunning ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            {scannerRunning ? 'Scanning...' : 'Run Scanner'}
+          </Button>
+          <Button onClick={fetchOpportunities} disabled={loading} variant="outline">
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Market Status Card */}
