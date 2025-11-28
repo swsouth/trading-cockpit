@@ -43,14 +43,18 @@ export async function POST(request: NextRequest) {
     const { getMarketStatus } = await import('@/lib/intradayMarketData');
     const marketStatus = getMarketStatus();
 
-    if (!marketStatus.isOpen) {
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        reason: 'Market closed',
-        message: marketStatus.message,
-      });
-    }
+    // TEMPORARILY DISABLED: Allow scanning even when market is closed for testing
+    // TODO: Re-enable this check before production
+    // if (!marketStatus.isOpen) {
+    //   return NextResponse.json({
+    //     success: true,
+    //     skipped: true,
+    //     reason: 'Market closed',
+    //     message: marketStatus.message,
+    //   });
+    // }
+
+    console.log(`⏰ Market status: ${marketStatus.isOpen ? 'OPEN' : 'CLOSED'} - Running scanner anyway for testing`);
 
     // Run stock scanner
     console.log(`🚀 Manual intraday scan triggered by user ${user.email}`);
