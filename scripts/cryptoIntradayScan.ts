@@ -272,7 +272,7 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
 /**
  * Main crypto scanner function
  */
-async function runCryptoScan(): Promise<void> {
+export async function runCryptoScan(): Promise<void> {
   console.log('🔍 CRYPTO INTRADAY SCANNER');
   console.log('═'.repeat(50));
   console.log(`Started: ${new Date().toLocaleString()}`);
@@ -286,10 +286,10 @@ async function runCryptoScan(): Promise<void> {
   console.log(`   ${marketStatus.message}`);
   console.log('');
 
-  // POC: Scan BTC only
-  const CRYPTO_SYMBOLS = ['BTC'];
+  // Top cryptocurrencies by market cap and trading volume
+  const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
 
-  console.log(`🎯 Scanning ${CRYPTO_SYMBOLS.length} cryptocurrency...`);
+  console.log(`🎯 Scanning ${CRYPTO_SYMBOLS.length} cryptocurrencies...`);
   console.log('');
 
   const opportunities: CryptoOpportunity[] = [];

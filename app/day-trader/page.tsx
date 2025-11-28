@@ -120,7 +120,7 @@ export default function DayTraderPage() {
     }
   };
 
-  // Run the intraday scanner manually
+  // Run the intraday scanner manually (tab-aware: stocks or crypto)
   const runScanner = async () => {
     if (!user) {
       toast({
@@ -134,10 +134,15 @@ export default function DayTraderPage() {
     setScannerRunning(true);
     setError(null);
 
+    // Determine which scanner to run based on active tab
+    const isStocks = activeTab === 'stocks';
+    const scannerType = isStocks ? 'stock' : 'crypto';
+    const endpoint = isStocks ? '/api/scan/intraday/manual' : '/api/scan/intraday/crypto';
+
     try {
       toast({
         title: 'Scanner Starting',
-        description: 'Running intraday market scan...',
+        description: `Running ${scannerType} intraday market scan...`,
       });
 
       // Get the current session token
@@ -147,7 +152,7 @@ export default function DayTraderPage() {
         throw new Error('No active session');
       }
 
-      const response = await fetch('/api/scan/intraday/manual', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -304,7 +309,7 @@ export default function DayTraderPage() {
             ) : (
               <Play className="mr-2 h-4 w-4" />
             )}
-            {scannerRunning ? 'Scanning...' : 'Run Scanner'}
+            {scannerRunning ? 'Scanning...' : `Run ${activeTab === 'stocks' ? 'Stock' : 'Crypto'} Scanner`}
           </Button>
           <Button onClick={fetchOpportunities} disabled={loading} variant="outline">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
