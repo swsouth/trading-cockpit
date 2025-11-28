@@ -53,18 +53,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Run stock scanner
-    console.log(`Manual intraday scan triggered by user ${user.email}`);
-    const { runIntradayMarketScan } = await import('@/scripts/intradayMarketScan');
+    console.log(`🚀 Manual intraday scan triggered by user ${user.email}`);
+    console.log(`📊 Environment check:`);
+    console.log(`   NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING'}`);
+    console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'}`);
+    console.log(`   ALPACA_API_KEY: ${process.env.ALPACA_API_KEY ? 'SET' : 'MISSING'}`);
+    console.log(`   ALPACA_SECRET_KEY: ${process.env.ALPACA_SECRET_KEY ? 'SET' : 'MISSING'}`);
 
-    await runIntradayMarketScan();
+    try {
+      const { runIntradayMarketScan } = await import('@/scripts/intradayMarketScan');
+      console.log('✅ Scanner module imported successfully');
 
-    console.log('Manual intraday scan completed successfully');
+      await runIntradayMarketScan();
 
-    return NextResponse.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      message: 'Stock scanner completed successfully',
-    });
+      console.log('✅ Manual intraday scan completed successfully');
+
+      return NextResponse.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        message: 'Stock scanner completed successfully',
+      });
+    } catch (scanError) {
+      console.error('❌ Scanner execution error:', scanError);
+      console.error('   Error stack:', scanError instanceof Error ? scanError.stack : 'No stack trace');
+      throw scanError; // Re-throw to be caught by outer catch block
+    }
 
   } catch (error) {
     console.error('Manual intraday scanner error:', error);
