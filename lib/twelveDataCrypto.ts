@@ -17,6 +17,77 @@ const getTwelveDataApiKey = () => process.env.TWELVE_DATA_API_KEY;
 const cryptoCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds for intraday (faster refresh)
 
+// Twelve Data API usage stats (updated on each API call)
+export interface TwelveDataUsageStats {
+  requestsLimitPerMinute: number;    // 8 per minute on free tier
+  requestsLimitPerDay: number;       // 800 per day on free tier
+  requestsUsedThisMinute: number;    // How many calls in current minute
+  requestsUsedToday: number;         // How many calls today
+  lastUpdated: Date;                 // When stats were last updated
+  percentUsedMinute: number;         // Percentage of minute quota used (0-100)
+  percentUsedDay: number;            // Percentage of day quota used (0-100)
+  resetTime: Date;                   // When minute limit resets
+}
+
+let currentTwelveDataUsage: TwelveDataUsageStats | null = null;
+
+/**
+ * Get current Twelve Data API usage statistics
+ * Returns null if no API calls have been made yet
+ */
+export function getTwelveDataUsageStats(): TwelveDataUsageStats | null {
+  return currentTwelveDataUsage;
+}
+
+/**
+ * Update usage stats from Twelve Data response
+ * Twelve Data doesn't return headers, so we track manually
+ */
+function updateUsageStats(): void {
+  const now = new Date();
+
+  if (!currentTwelveDataUsage) {
+    // Initialize tracking
+    currentTwelveDataUsage = {
+      requestsLimitPerMinute: 8,      // Free tier limit
+      requestsLimitPerDay: 800,       // Free tier limit
+      requestsUsedThisMinute: 1,
+      requestsUsedToday: 1,
+      lastUpdated: now,
+      percentUsedMinute: Math.round((1 / 8) * 100),
+      percentUsedDay: Math.round((1 / 800) * 100),
+      resetTime: new Date(now.getTime() + 60000), // 1 minute from now
+    };
+  } else {
+    const timeSinceLastCall = now.getTime() - currentTwelveDataUsage.lastUpdated.getTime();
+
+    // If more than 1 minute passed, reset minute counter
+    if (timeSinceLastCall >= 60000) {
+      currentTwelveDataUsage.requestsUsedThisMinute = 1;
+      currentTwelveDataUsage.resetTime = new Date(now.getTime() + 60000);
+    } else {
+      currentTwelveDataUsage.requestsUsedThisMinute++;
+    }
+
+    // Check if it's a new day (reset day counter)
+    const lastCallDay = currentTwelveDataUsage.lastUpdated.toDateString();
+    const currentDay = now.toDateString();
+    if (lastCallDay !== currentDay) {
+      currentTwelveDataUsage.requestsUsedToday = 1;
+    } else {
+      currentTwelveDataUsage.requestsUsedToday++;
+    }
+
+    currentTwelveDataUsage.lastUpdated = now;
+    currentTwelveDataUsage.percentUsedMinute = Math.round(
+      (currentTwelveDataUsage.requestsUsedThisMinute / currentTwelveDataUsage.requestsLimitPerMinute) * 100
+    );
+    currentTwelveDataUsage.percentUsedDay = Math.round(
+      (currentTwelveDataUsage.requestsUsedToday / currentTwelveDataUsage.requestsLimitPerDay) * 100
+    );
+  }
+}
+
 function getCached<T>(key: string): T | null {
   const cached = cryptoCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -90,9 +161,12 @@ export async function getCryptoIntradayCandles(
 
     const response = await fetch(url.toString());
 
+    // Update usage stats after each API call
+    updateUsageStats();
+
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error('Twelve Data API rate limit exceeded (800 calls/day on free tier)');
+        throw new Error('Twelve Data API rate limit exceeded (8 calls/min or 800 calls/day on free tier)');
       }
       if (response.status === 401) {
         throw new Error('Twelve Data API authentication failed - check your API key');

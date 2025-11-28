@@ -50,6 +50,21 @@ interface AlpacaUsageStats {
   message?: string;
 }
 
+interface TwelveDataUsageStats {
+  available: boolean;
+  stats?: {
+    requestsLimitPerMinute: number;
+    requestsLimitPerDay: number;
+    requestsUsedThisMinute: number;
+    requestsUsedToday: number;
+    resetTime: string;
+    lastUpdated: string;
+    percentUsedMinute: number;
+    percentUsedDay: number;
+  };
+  message?: string;
+}
+
 export default function DayTraderPage() {
   const [opportunities, setOpportunities] = useState<IntradayOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +72,7 @@ export default function DayTraderPage() {
   const [error, setError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [alpacaUsage, setAlpacaUsage] = useState<AlpacaUsageStats | null>(null);
+  const [twelveDataUsage, setTwelveDataUsage] = useState<TwelveDataUsageStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
@@ -117,6 +133,17 @@ export default function DayTraderPage() {
       setAlpacaUsage(data);
     } catch (err) {
       console.error('Error fetching Alpaca usage:', err);
+    }
+  };
+
+  // Fetch Twelve Data usage stats
+  const fetchTwelveDataUsage = async () => {
+    try {
+      const response = await fetch('/api/twelve-data-usage');
+      const data = await response.json();
+      setTwelveDataUsage(data);
+    } catch (err) {
+      console.error('Error fetching Twelve Data usage:', err);
     }
   };
 
@@ -205,11 +232,13 @@ export default function DayTraderPage() {
       fetchOpportunities();
       fetchMarketStatus();
       fetchAlpacaUsage();
+      fetchTwelveDataUsage();
 
       const interval = setInterval(() => {
         fetchOpportunities();
         fetchMarketStatus();
         fetchAlpacaUsage();
+        fetchTwelveDataUsage();
       }, 10000); // 10 seconds
 
       return () => clearInterval(interval);
@@ -319,7 +348,7 @@ export default function DayTraderPage() {
       </div>
 
       {/* Market Status & API Usage Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Market Status Card */}
         {marketStatus && (
           <Card>
@@ -372,6 +401,65 @@ export default function DayTraderPage() {
                   ? `${alpacaUsage.stats.percentUsed}% USED`
                   : 'IDLE'}
               </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Twelve Data API Usage Card (Crypto) */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Activity className={`h-5 w-5 ${
+                    twelveDataUsage?.available && twelveDataUsage.stats
+                      ? (twelveDataUsage.stats.percentUsedMinute >= 90 ? 'text-red-500' :
+                         twelveDataUsage.stats.percentUsedMinute >= 70 ? 'text-orange-500' :
+                         'text-green-500')
+                      : 'text-gray-400'
+                  }`} />
+                  <div>
+                    <p className="font-semibold">Twelve Data (Crypto)</p>
+                    <p className="text-sm text-muted-foreground">
+                      {twelveDataUsage?.available && twelveDataUsage.stats
+                        ? `${twelveDataUsage.stats.requestsUsedThisMinute}/${twelveDataUsage.stats.requestsLimitPerMinute} per min`
+                        : 'No crypto calls yet'}
+                    </p>
+                    {twelveDataUsage?.available && twelveDataUsage.stats && (
+                      <p className="text-xs text-muted-foreground">
+                        {twelveDataUsage.stats.requestsUsedToday}/{twelveDataUsage.stats.requestsLimitPerDay} today
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Badge className={
+                  twelveDataUsage?.available && twelveDataUsage.stats
+                    ? (twelveDataUsage.stats.percentUsedMinute >= 90 ? 'bg-red-500' :
+                       twelveDataUsage.stats.percentUsedMinute >= 70 ? 'bg-orange-500' :
+                       'bg-green-500')
+                    : 'bg-gray-400'
+                }>
+                  {twelveDataUsage?.available && twelveDataUsage.stats
+                    ? `${twelveDataUsage.stats.percentUsedMinute}%/MIN`
+                    : 'IDLE'}
+                </Badge>
+              </div>
+              {twelveDataUsage?.available && twelveDataUsage.stats && twelveDataUsage.stats.requestsUsedThisMinute > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    Resets in {(() => {
+                      const resetTime = new Date(twelveDataUsage.stats.resetTime).getTime();
+                      const now = currentTime.getTime();
+                      const diff = Math.max(0, resetTime - now);
+                      const seconds = Math.floor(diff / 1000);
+                      const minutes = Math.floor(seconds / 60);
+                      const remainingSeconds = seconds % 60;
+                      return `${minutes}m ${remainingSeconds}s`;
+                    })()}
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

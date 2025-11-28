@@ -21,7 +21,9 @@
       "mcp__netlify__netlify-project-services-updater",
       "WebFetch(domain:alpaca.markets)",
       "Bash(node test-alpaca.js:*)",
-      "Bash(del test-alpaca.js)"
+      "Bash(del test-alpaca.js)",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__apply_migration"
     ],
     "deny": [],
     "ask": []
