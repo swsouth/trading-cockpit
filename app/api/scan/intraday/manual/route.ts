@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if stock market is open
-    const { getMarketStatus } = await import('@/lib/intradayMarketData');
-    const marketStatus = getMarketStatus();
+    // Check if stock market is open (using Twelve Data instead of Alpaca)
+    const { getStockMarketStatus } = await import('@/lib/twelveDataStocks');
+    const marketStatus = getStockMarketStatus();
 
     // TEMPORARILY DISABLED: Allow scanning even when market is closed for testing
     // TODO: Re-enable this check before production
@@ -61,8 +61,7 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Environment check:`);
     console.log(`   NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING'}`);
     console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'}`);
-    console.log(`   ALPACA_API_KEY: ${process.env.ALPACA_API_KEY ? 'SET' : 'MISSING'}`);
-    console.log(`   ALPACA_SECRET_KEY: ${process.env.ALPACA_SECRET_KEY ? 'SET' : 'MISSING'}`);
+    console.log(`   TWELVE_DATA_API_KEY: ${process.env.TWELVE_DATA_API_KEY ? 'SET' : 'MISSING'} (using Twelve Data instead of Alpaca)`);
 
     try {
       const { runIntradayMarketScan } = await import('@/scripts/intradayMarketScan');

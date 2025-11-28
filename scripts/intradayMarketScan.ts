@@ -10,7 +10,8 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
-import { getIntradayCandles, isMarketOpen, getMarketStatus } from '@/lib/intradayMarketData';
+// USING TWELVE DATA instead of Alpaca (paper trading keys don't include market data subscription)
+import { getStockIntradayCandles as getIntradayCandles, isStockMarketOpen as isMarketOpen, getStockMarketStatus as getMarketStatus } from '@/lib/twelveDataStocks';
 import { detectChannel } from '@/lib/analysis';
 import { calculateIntradayOpportunityScore } from '@/lib/scoring';
 import { generateTradeRecommendation } from '@/lib/tradeCalculator';
@@ -49,14 +50,14 @@ async function getActiveIntradaySymbols(): Promise<string[]> {
  * Intraday scanner configuration
  */
 interface IntradayScanConfig {
-  timeframe: '1Min' | '5Min' | '15Min';
+  timeframe: '1min' | '5min' | '15min'; // Twelve Data format (lowercase)
   lookbackBars: number;        // Number of bars to analyze
   expirationMinutes: number;   // How long setup stays valid
   minScore: number;            // Minimum score to save
 }
 
 const DEFAULT_CONFIG: IntradayScanConfig = {
-  timeframe: '5Min',           // 5-minute bars
+  timeframe: '5min',           // 5-minute bars (Twelve Data format)
   lookbackBars: 60,            // 60 bars = 5 hours of data
   expirationMinutes: 30,       // Setups expire in 30 min
   minScore: 0,                 // Show ALL opportunities - let user decide (matches daily scanner)
