@@ -341,34 +341,40 @@ export default function DayTraderPage() {
         )}
 
         {/* Alpaca API Usage Card */}
-        {alpacaUsage?.available && alpacaUsage.stats && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Activity className={`h-5 w-5 ${
-                    alpacaUsage.stats.percentUsed >= 90 ? 'text-red-500' :
-                    alpacaUsage.stats.percentUsed >= 70 ? 'text-orange-500' :
-                    'text-green-500'
-                  }`} />
-                  <div>
-                    <p className="font-semibold">Alpaca API Usage</p>
-                    <p className="text-sm text-muted-foreground">
-                      {alpacaUsage.stats.requestsRemaining}/{alpacaUsage.stats.requestsLimit} requests remaining
-                    </p>
-                  </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Activity className={`h-5 w-5 ${
+                  alpacaUsage?.available && alpacaUsage.stats
+                    ? (alpacaUsage.stats.percentUsed >= 90 ? 'text-red-500' :
+                       alpacaUsage.stats.percentUsed >= 70 ? 'text-orange-500' :
+                       'text-green-500')
+                    : 'text-gray-400'
+                }`} />
+                <div>
+                  <p className="font-semibold">Alpaca API Usage</p>
+                  <p className="text-sm text-muted-foreground">
+                    {alpacaUsage?.available && alpacaUsage.stats
+                      ? `${alpacaUsage.stats.requestsRemaining}/${alpacaUsage.stats.requestsLimit} requests remaining`
+                      : 'No API calls made yet'}
+                  </p>
                 </div>
-                <Badge className={
-                  alpacaUsage.stats.percentUsed >= 90 ? 'bg-red-500' :
-                  alpacaUsage.stats.percentUsed >= 70 ? 'bg-orange-500' :
-                  'bg-green-500'
-                }>
-                  {alpacaUsage.stats.percentUsed}% USED
-                </Badge>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <Badge className={
+                alpacaUsage?.available && alpacaUsage.stats
+                  ? (alpacaUsage.stats.percentUsed >= 90 ? 'bg-red-500' :
+                     alpacaUsage.stats.percentUsed >= 70 ? 'bg-orange-500' :
+                     'bg-green-500')
+                  : 'bg-gray-400'
+              }>
+                {alpacaUsage?.available && alpacaUsage.stats
+                  ? `${alpacaUsage.stats.percentUsed}% USED`
+                  : 'IDLE'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Error Display */}

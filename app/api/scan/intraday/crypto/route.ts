@@ -50,14 +50,17 @@ export async function POST(request: NextRequest) {
       const { runCryptoScan } = await import('@/scripts/cryptoIntradayScan');
       console.log('✅ Crypto scanner module imported successfully');
 
-      await runCryptoScan();
+      const opportunitiesCount = await runCryptoScan();
 
-      console.log('✅ Manual crypto intraday scan completed successfully');
+      console.log(`✅ Manual crypto intraday scan completed successfully - found ${opportunitiesCount} opportunities`);
 
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
-        message: 'Crypto scanner completed successfully',
+        opportunitiesCount,
+        message: opportunitiesCount > 0
+          ? `Found ${opportunitiesCount} new crypto ${opportunitiesCount === 1 ? 'opportunity' : 'opportunities'}`
+          : 'Scan completed - no crypto setups found at this time',
       });
     } catch (scanError) {
       console.error('❌ Crypto scanner execution error:', scanError);

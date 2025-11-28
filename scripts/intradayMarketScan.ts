@@ -321,10 +321,11 @@ async function storeIntradayOpportunities(
 
 /**
  * Main intraday scanner function
+ * Returns the count of opportunities found
  */
 export async function runIntradayMarketScan(
   config: IntradayScanConfig = DEFAULT_CONFIG
-): Promise<void> {
+): Promise<number> {
   console.log('\n═══════════════════════════════════════════════════════════');
   console.log('  INTRADAY MARKET SCANNER (DAY TRADING)');
   console.log('═══════════════════════════════════════════════════════════\n');
@@ -422,6 +423,8 @@ export async function runIntradayMarketScan(
   console.log(`Next Scan:           In 5 minutes\n`);
 
   console.log('✅ Intraday scan complete!\n');
+
+  return opportunities.length;
 }
 
 // Run the scanner if executed directly

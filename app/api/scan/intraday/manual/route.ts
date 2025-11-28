@@ -68,14 +68,17 @@ export async function POST(request: NextRequest) {
       const { runIntradayMarketScan } = await import('@/scripts/intradayMarketScan');
       console.log('✅ Scanner module imported successfully');
 
-      await runIntradayMarketScan();
+      const opportunitiesCount = await runIntradayMarketScan();
 
-      console.log('✅ Manual intraday scan completed successfully');
+      console.log(`✅ Manual intraday scan completed successfully - found ${opportunitiesCount} opportunities`);
 
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
-        message: 'Stock scanner completed successfully',
+        opportunitiesCount,
+        message: opportunitiesCount > 0
+          ? `Found ${opportunitiesCount} new stock ${opportunitiesCount === 1 ? 'opportunity' : 'opportunities'}`
+          : 'Scan completed - no stock setups found at this time',
       });
     } catch (scanError) {
       console.error('❌ Scanner execution error:', scanError);

@@ -271,8 +271,9 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
 
 /**
  * Main crypto scanner function
+ * Returns the count of opportunities found
  */
-export async function runCryptoScan(): Promise<void> {
+export async function runCryptoScan(): Promise<number> {
   console.log('🔍 CRYPTO INTRADAY SCANNER');
   console.log('═'.repeat(50));
   console.log(`Started: ${new Date().toLocaleString()}`);
@@ -327,6 +328,8 @@ export async function runCryptoScan(): Promise<void> {
   console.log('');
   console.log(`✅ Scan completed: ${new Date().toLocaleString()}`);
   console.log('');
+
+  return opportunities.length;
 }
 
 // Run the scanner
