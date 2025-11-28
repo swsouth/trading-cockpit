@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -26,6 +27,7 @@ interface IntradayOpportunity {
   channel_status: string | null;
   pattern_detected: string | null;
   rsi: number | null;
+  asset_type?: 'stock' | 'crypto'; // Optional for backward compatibility
 }
 
 interface MarketStatus {
@@ -41,8 +43,17 @@ export default function DayTraderPage() {
   const [error, setError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
   const { user, loading: authLoading } = useAuth();
+
+  // Filter opportunities by asset type
+  const stockOpportunities = opportunities.filter(opp =>
+    !opp.asset_type || opp.asset_type === 'stock'
+  );
+  const cryptoOpportunities = opportunities.filter(opp =>
+    opp.asset_type === 'crypto'
+  );
 
   // Fetch opportunities from database
   const fetchOpportunities = async () => {
@@ -221,39 +232,78 @@ export default function DayTraderPage() {
         </Card>
       )}
 
-      {/* Opportunities List */}
+      {/* Opportunities Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'stocks' | 'crypto')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="stocks" className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Stocks ({stockOpportunities.length})
+          </TabsTrigger>
+          <TabsTrigger value="crypto" className="flex items-center gap-2">
+            <Bitcoin className="h-4 w-4" />
+            Crypto ({cryptoOpportunities.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Stocks Tab */}
+        <TabsContent value="stocks" className="space-y-4 mt-6">
+          {renderOpportunitiesList(stockOpportunities, 'stocks')}
+        </TabsContent>
+
+        {/* Crypto Tab */}
+        <TabsContent value="crypto" className="space-y-4 mt-6">
+          {renderOpportunitiesList(cryptoOpportunities, 'crypto')}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
+  // Helper function to render opportunities list
+  function renderOpportunitiesList(opps: IntradayOpportunity[], assetType: 'stocks' | 'crypto') {
+    if (loading && opps.length === 0) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
+    }
+
+    if (opps.length === 0) {
+      return (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8 text-muted-foreground">
+              {assetType === 'stocks' ? (
+                <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              ) : (
+                <Bitcoin className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              )}
+              <p className="text-lg font-medium">No active {assetType} opportunities</p>
+              <p className="text-sm">New setups will appear here when the scanner finds them</p>
+              {marketStatus && !marketStatus.isOpen && assetType === 'stocks' && (
+                <p className="text-sm mt-2">Stock market is currently closed</p>
+              )}
+              {assetType === 'crypto' && (
+                <p className="text-sm mt-2 text-green-600">Crypto markets trade 24/7</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">
-            Active Opportunities ({opportunities.length})
+            Active {assetType === 'stocks' ? 'Stock' : 'Crypto'} Opportunities ({opps.length})
           </h2>
-          {opportunities.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Showing {opportunities.length} live setup{opportunities.length !== 1 ? 's' : ''}
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Showing {opps.length} live setup{opps.length !== 1 ? 's' : ''}
+          </p>
         </div>
-
-        {loading && opportunities.length === 0 ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : opportunities.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">No active opportunities</p>
-                <p className="text-sm">New setups will appear here when the scanner finds them</p>
-                {marketStatus && !marketStatus.isOpen && (
-                  <p className="text-sm mt-2">Market is currently closed</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {opportunities.map((opp) => {
+        <div className="grid gap-4">
+          {opps.map((opp) => {
               const { minutes, seconds, isExpired } = getTimeRemaining(opp.expires_at);
               const isExpiringSoon = minutes < 5 && !isExpired;
 
@@ -375,8 +425,8 @@ export default function DayTraderPage() {
               );
             })}
           </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+      );
+    }
+  }
 }
