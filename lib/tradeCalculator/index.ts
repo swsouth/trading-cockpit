@@ -33,13 +33,13 @@ import {
 export function generateTradeRecommendation(
   input: TradeCalculatorInput
 ): TradeRecommendation | null {
-  const { symbol, candles, channel, pattern, currentPrice: providedPrice } = input;
+  const { symbol, candles, channel, pattern, currentPrice: providedPrice, volume, absorption } = input;
 
   // Get current price
   const currentPrice = providedPrice ?? candles[candles.length - 1].close;
 
-  // Determine setup type
-  const setup = determineSetupType(candles, channel, pattern);
+  // Determine setup type (pass volume and absorption for high confidence determination)
+  const setup = determineSetupType(candles, channel, pattern, volume, absorption);
 
   // Only proceed if we have an actionable setup
   if (!isActionableSetup(setup)) {

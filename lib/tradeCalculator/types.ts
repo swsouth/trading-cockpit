@@ -5,6 +5,8 @@
  */
 
 import { Candle, ChannelDetectionResult, PatternDetectionResult } from '../types';
+import { VolumeAnalysis } from '../scoring/types';
+import { AbsorptionPattern } from '../orderflow/types';
 
 /**
  * Trade setup direction
@@ -65,6 +67,8 @@ export interface TradeCalculatorInput {
   channel: ChannelDetectionResult;
   pattern: PatternDetectionResult;
   currentPrice?: number; // If not provided, uses last candle close
+  volume?: VolumeAnalysis; // Optional - used for high confidence determination
+  absorption?: AbsorptionPattern; // Optional - used for high confidence determination
 }
 
 /**

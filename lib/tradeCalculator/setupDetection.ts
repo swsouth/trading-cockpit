@@ -6,6 +6,8 @@
 
 import { Candle, ChannelDetectionResult, PatternDetectionResult, DetectedPattern } from '../types';
 import { TradeSetup, SetupType } from './types';
+import { VolumeAnalysis } from '../scoring/types';
+import { AbsorptionPattern } from '../orderflow/types';
 
 /**
  * Determine the type of setup (long, short, or none)
@@ -13,7 +15,9 @@ import { TradeSetup, SetupType } from './types';
 export function determineSetupType(
   candles: Candle[],
   channel: ChannelDetectionResult,
-  pattern: PatternDetectionResult
+  pattern: PatternDetectionResult,
+  volume?: VolumeAnalysis,
+  absorption?: AbsorptionPattern
 ): TradeSetup {
   const bullishPatterns: DetectedPattern[] = [
     'bullish_engulfing',
@@ -32,31 +36,45 @@ export function determineSetupType(
 
   const currentPrice = candles[candles.length - 1].close;
 
-  // Strong long setup: Near support with bullish pattern in uptrend
-  if (
-    channel.hasChannel &&
-    channel.status === 'near_support' &&
-    isBullishPattern
-  ) {
+  // Strong long setup: Near support with ANY strong confirmation
+  // High confidence criteria (ANY of these):
+  // 1. Channel + near S/R + pattern
+  // 2. Channel + near S/R + volume > 2x
+  // 3. Channel + near S/R + buying absorption
+  if (channel.hasChannel && channel.status === 'near_support') {
+    const hasStrongConfirmation =
+      isBullishPattern ||
+      (volume && volume.volumeRatio > 2.0) ||
+      (absorption && absorption.type === 'buying');
+
     return {
       type: 'long',
-      setupName: 'Long - Support Bounce',
-      reason: 'Price near support with bullish reversal pattern',
-      confidence: 'high',
+      setupName: hasStrongConfirmation ? 'Long - Support Bounce' : 'Long - Channel Support',
+      reason: hasStrongConfirmation
+        ? 'Price near support with strong confirmation'
+        : 'Price approaching support level',
+      confidence: hasStrongConfirmation ? 'high' : 'medium',
     };
   }
 
-  // Strong short setup: Near resistance with bearish pattern in downtrend
-  if (
-    channel.hasChannel &&
-    channel.status === 'near_resistance' &&
-    isBearishPattern
-  ) {
+  // Strong short setup: Near resistance with ANY strong confirmation
+  // High confidence criteria (ANY of these):
+  // 1. Channel + near S/R + pattern
+  // 2. Channel + near S/R + volume > 2x
+  // 3. Channel + near S/R + selling absorption
+  if (channel.hasChannel && channel.status === 'near_resistance') {
+    const hasStrongConfirmation =
+      isBearishPattern ||
+      (volume && volume.volumeRatio > 2.0) ||
+      (absorption && absorption.type === 'selling');
+
     return {
       type: 'short',
-      setupName: 'Short - Resistance Rejection',
-      reason: 'Price near resistance with bearish reversal pattern',
-      confidence: 'high',
+      setupName: hasStrongConfirmation ? 'Short - Resistance Rejection' : 'Short - Channel Resistance',
+      reason: hasStrongConfirmation
+        ? 'Price near resistance with strong confirmation'
+        : 'Price approaching resistance level',
+      confidence: hasStrongConfirmation ? 'high' : 'medium',
     };
   }
 
@@ -86,32 +104,6 @@ export function determineSetupType(
       type: 'short',
       setupName: 'Short - Breakdown',
       reason: 'Breakdown below support with bearish confirmation',
-      confidence: 'medium',
-    };
-  }
-
-  // Medium confidence long: Near support without pattern
-  if (
-    channel.hasChannel &&
-    channel.status === 'near_support'
-  ) {
-    return {
-      type: 'long',
-      setupName: 'Long - Channel Support',
-      reason: 'Price approaching support level',
-      confidence: 'medium',
-    };
-  }
-
-  // Medium confidence short: Near resistance without pattern
-  if (
-    channel.hasChannel &&
-    channel.status === 'near_resistance'
-  ) {
-    return {
-      type: 'short',
-      setupName: 'Short - Channel Resistance',
-      reason: 'Price approaching resistance level',
       confidence: 'medium',
     };
   }

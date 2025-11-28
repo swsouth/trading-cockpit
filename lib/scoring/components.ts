@@ -271,7 +271,7 @@ export function calculateRiskRewardMetrics(
 }
 
 /**
- * Score absorption pattern (0-10 points)
+ * Score absorption pattern (0-10 points, or -5 penalty for conflicts)
  *
  * Absorption occurs when high volume doesn't move price (action without reaction).
  * This reveals hidden institutional buying/selling before price moves.
@@ -279,9 +279,13 @@ export function calculateRiskRewardMetrics(
  * Based on Jay Ortani's strategy: "When I see 50K shares sold and price doesn't move,
  * I know institutions are absorbing that supply."
  *
+ * CRITICAL: Bidirectional scoring to detect trap setups
+ * - Aligned absorption (e.g., buying at support for long): +0 to +10 points
+ * - Conflicting absorption (e.g., selling at support for long): -5 to 0 points (WARNING)
+ *
  * @param absorption - Detected absorption pattern
  * @param setupType - Trade setup type (long/short)
- * @returns Score 0-10
+ * @returns Score -5 to +10 (negative = conflicting signal)
  */
 export function scoreAbsorption(
   absorption: AbsorptionPattern,
@@ -289,15 +293,21 @@ export function scoreAbsorption(
 ): number {
   if (absorption.type === 'none') return 0;
 
-  // Only score absorption if it aligns with our setup direction
-  if (setupType === 'long' && absorption.type !== 'buying') return 0;
-  if (setupType === 'short' && absorption.type !== 'selling') return 0;
+  // Check if absorption aligns with setup direction
+  const isAligned = (
+    (setupType === 'long' && absorption.type === 'buying') ||
+    (setupType === 'short' && absorption.type === 'selling')
+  );
 
-  // High confidence absorption adds up to 10 points
-  const baseScore = (absorption.confidence / 100) * 10;
-
-  // Bonus points if large orders are involved (more reliable)
-  const largeOrderBonus = absorption.largeOrdersInvolved > 0 ? 1 : 0;
-
-  return Math.min(10, Math.round(baseScore + largeOrderBonus));
+  if (isAligned) {
+    // Aligned absorption: Add bonus points
+    const baseScore = (absorption.confidence / 100) * 10;
+    const largeOrderBonus = absorption.largeOrdersInvolved > 0 ? 1 : 0;
+    return Math.min(10, Math.round(baseScore + largeOrderBonus));
+  } else {
+    // Conflicting absorption: Penalize (cap at -5 to avoid killing otherwise good setups)
+    // This warns that institutions are on the opposite side of the trade
+    const penalty = (absorption.confidence / 100) * 5;
+    return -Math.min(5, Math.round(penalty));
+  }
 }

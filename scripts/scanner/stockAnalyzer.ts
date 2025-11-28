@@ -9,6 +9,7 @@ import { detectChannel } from '../../lib/analysis';
 import { detectPatterns } from '../../lib/analysis';
 import { generateTradeRecommendation } from '../../lib/tradeCalculator';
 import { calculateOpportunityScore, analyzeVolume } from '../../lib/scoring';
+import { detectAbsorption } from '../../lib/orderflow';
 import { StockAnalysisResult } from './types';
 
 /**
@@ -37,12 +38,18 @@ export async function analyzeSingleStock(
     const channel = detectChannel(recentCandles);
     const pattern = detectPatterns(recentCandles);
 
-    // 3. Generate trade recommendation
+    // 3. Calculate volume analysis and absorption detection
+    const volume = analyzeVolume(recentCandles);
+    const absorption = detectAbsorption(recentCandles, volume);
+
+    // 4. Generate trade recommendation (with volume and absorption for high confidence)
     const recommendation = generateTradeRecommendation({
       symbol,
       candles: recentCandles,
       channel,
       pattern,
+      volume,
+      absorption,
     });
 
     // If no actionable setup, return early
@@ -53,9 +60,6 @@ export async function analyzeSingleStock(
         error: 'No actionable setup',
       };
     }
-
-    // 4. Calculate volume analysis
-    const volume = analyzeVolume(recentCandles);
 
     // 5. Score the opportunity
     const score = calculateOpportunityScore({
