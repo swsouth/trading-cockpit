@@ -210,6 +210,14 @@ export default function DayTraderPage() {
         throw new Error(data.message || 'Scanner failed');
       }
 
+      // Update usage stats from response (if crypto scanner)
+      if (data.usageStats && activeTab === 'crypto') {
+        setTwelveDataUsage({
+          available: true,
+          stats: data.usageStats,
+        });
+      }
+
       if (data.skipped) {
         toast({
           title: 'Scanner Skipped',
@@ -219,13 +227,17 @@ export default function DayTraderPage() {
       } else {
         toast({
           title: 'Scanner Complete',
-          description: 'New opportunities have been found. Refreshing...',
+          description: data.message || 'New opportunities have been found. Refreshing...',
         });
 
         // Refresh opportunities and usage stats after scan completes
         setTimeout(() => {
           fetchOpportunities();
-          fetchAlpacaUsage();
+          if (activeTab === 'stocks') {
+            fetchAlpacaUsage();
+          } else {
+            fetchTwelveDataUsage();
+          }
         }, 1000);
       }
     } catch (err) {
@@ -238,6 +250,11 @@ export default function DayTraderPage() {
         description: errorMessage,
         variant: 'destructive',
       });
+
+      // Refresh usage stats even on error to get updated counts
+      if (activeTab === 'crypto') {
+        fetchTwelveDataUsage();
+      }
     } finally {
       setScannerRunning(false);
     }

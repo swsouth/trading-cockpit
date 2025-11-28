@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ Manual crypto intraday scan completed successfully - found ${opportunitiesCount} opportunities`);
 
+      // Get updated usage stats after scan
+      const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');
+      const usageStats = getTwelveDataUsageStats();
+
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
@@ -61,10 +65,25 @@ export async function POST(request: NextRequest) {
         message: opportunitiesCount > 0
           ? `Found ${opportunitiesCount} new crypto ${opportunitiesCount === 1 ? 'opportunity' : 'opportunities'}`
           : 'Scan completed - no crypto setups found at this time',
+        usageStats: usageStats ? {
+          requestsLimitPerMinute: usageStats.requestsLimitPerMinute,
+          requestsLimitPerDay: usageStats.requestsLimitPerDay,
+          requestsUsedThisMinute: usageStats.requestsUsedThisMinute,
+          requestsUsedToday: usageStats.requestsUsedToday,
+          resetTime: usageStats.resetTime.toISOString(),
+          lastUpdated: usageStats.lastUpdated.toISOString(),
+          percentUsedMinute: usageStats.percentUsedMinute,
+          percentUsedDay: usageStats.percentUsedDay,
+        } : null,
       });
     } catch (scanError) {
       console.error('❌ Crypto scanner execution error:', scanError);
       console.error('   Error stack:', scanError instanceof Error ? scanError.stack : 'No stack trace');
+
+      // Even on error, return usage stats to update client
+      const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');
+      const usageStats = getTwelveDataUsageStats();
+
       throw scanError; // Re-throw to be caught by outer catch block
     }
 
