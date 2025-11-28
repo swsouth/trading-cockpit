@@ -10,8 +10,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
-// USING TWELVE DATA instead of Alpaca (paper trading keys don't include market data subscription)
-import { getStockIntradayCandles as getIntradayCandles, isStockMarketOpen as isMarketOpen, getStockMarketStatus as getMarketStatus } from '@/lib/twelveDataStocks';
+import { getIntradayCandles, isMarketOpen, getMarketStatus } from '@/lib/intradayMarketData';
 import { detectChannel } from '@/lib/analysis';
 import { calculateIntradayOpportunityScore } from '@/lib/scoring';
 import { generateTradeRecommendation } from '@/lib/tradeCalculator';
@@ -50,14 +49,14 @@ async function getActiveIntradaySymbols(): Promise<string[]> {
  * Intraday scanner configuration
  */
 interface IntradayScanConfig {
-  timeframe: '1min' | '5min' | '15min'; // Twelve Data format (lowercase)
+  timeframe: '1Min' | '5Min' | '15Min';
   lookbackBars: number;        // Number of bars to analyze
   expirationMinutes: number;   // How long setup stays valid
   minScore: number;            // Minimum score to save
 }
 
 const DEFAULT_CONFIG: IntradayScanConfig = {
-  timeframe: '5min',           // 5-minute bars (Twelve Data format)
+  timeframe: '5Min',           // 5-minute bars
   lookbackBars: 60,            // 60 bars = 5 hours of data
   expirationMinutes: 30,       // Setups expire in 30 min
   minScore: 0,                 // Show ALL opportunities - let user decide (matches daily scanner)
@@ -349,13 +348,8 @@ export async function runIntradayMarketScan(
 
   // Get active symbols from database
   console.log('📊 Fetching active intraday stocks...');
-  const allSymbols = await getActiveIntradaySymbols();
-  console.log(`   Found ${allSymbols.length} active stocks in database\n`);
-
-  // TEMPORARY: Limit to 7 stocks to stay under Twelve Data rate limit (8 calls/min)
-  // TODO: Implement batching or upgrade to paid tier for production
-  const symbols = allSymbols.slice(0, 7);
-  console.log(`   🚧 Rate limit protection: Scanning first ${symbols.length} stocks only\n`);
+  const symbols = await getActiveIntradaySymbols();
+  console.log(`   Found ${symbols.length} active stocks\n`);
 
   console.log(`Scanning ${symbols.length} high-volume stocks...`);
   console.log(`Timeframe: ${config.timeframe} bars (${config.lookbackBars} bars = ${(config.lookbackBars * 5) / 60} hours)`);
@@ -380,7 +374,7 @@ export async function runIntradayMarketScan(
       successful++; // Still counts as successful scan, just no setup
     }
 
-    // Small delay between API calls (respects Twelve Data rate limits)
+    // Small delay to avoid hammering API (Alpaca allows 200 req/min)
     await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s delay
   }
 
