@@ -18,6 +18,101 @@ const getAlpacaSecretKey = () => process.env.ALPACA_SECRET_KEY;
 const intradayCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds for intraday (faster refresh than daily)
 
+// Alpaca API usage stats (updated on each API call)
+export interface AlpacaUsageStats {
+  requestsLimit: number;      // Total allowed per minute (200 or 1000)
+  requestsRemaining: number;  // Remaining in current window
+  resetTime: Date;            // When limit resets
+  lastUpdated: Date;          // When stats were last updated
+  percentUsed: number;        // Percentage of quota used (0-100)
+}
+
+let currentUsageStats: AlpacaUsageStats | null = null;
+
+/**
+ * Get current Alpaca API usage statistics
+ * Returns null if no API calls have been made yet
+ */
+export function getAlpacaUsageStats(): AlpacaUsageStats | null {
+  return currentUsageStats;
+}
+
+/**
+ * Extract rate limit info from Alpaca response headers
+ * Adapts to various header naming conventions
+ */
+function extractRateLimitHeaders(headers: Headers): Partial<AlpacaUsageStats> | null {
+  try {
+    // Try common header name patterns
+    const limitHeaders = [
+      'X-RateLimit-Limit',
+      'X-Rate-Limit-Limit',
+      'RateLimit-Limit',
+      'x-ratelimit-limit'
+    ];
+    const remainingHeaders = [
+      'X-RateLimit-Remaining',
+      'X-Rate-Limit-Remaining',
+      'RateLimit-Remaining',
+      'x-ratelimit-remaining'
+    ];
+    const resetHeaders = [
+      'X-RateLimit-Reset',
+      'X-Rate-Limit-Reset',
+      'RateLimit-Reset',
+      'x-ratelimit-reset'
+    ];
+
+    // Find which headers exist
+    let limit: number | null = null;
+    let remaining: number | null = null;
+    let reset: number | null = null;
+
+    for (const header of limitHeaders) {
+      const value = headers.get(header);
+      if (value) {
+        limit = parseInt(value);
+        break;
+      }
+    }
+
+    for (const header of remainingHeaders) {
+      const value = headers.get(header);
+      if (value) {
+        remaining = parseInt(value);
+        break;
+      }
+    }
+
+    for (const header of resetHeaders) {
+      const value = headers.get(header);
+      if (value) {
+        reset = parseInt(value);
+        break;
+      }
+    }
+
+    // If we found at least limit and remaining, return the stats
+    if (limit !== null && remaining !== null) {
+      const resetTime = reset ? new Date(reset * 1000) : new Date(Date.now() + 60000);
+      const percentUsed = Math.round(((limit - remaining) / limit) * 100);
+
+      return {
+        requestsLimit: limit,
+        requestsRemaining: remaining,
+        resetTime,
+        lastUpdated: new Date(),
+        percentUsed
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting rate limit headers:', error);
+    return null;
+  }
+}
+
 function getCached<T>(key: string): T | null {
   const cached = intradayCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -70,9 +165,24 @@ export async function getIntradayCandles(
       },
     });
 
+    // Extract rate limit headers from response
+    const rateLimitStats = extractRateLimitHeaders(response.headers);
+    if (rateLimitStats) {
+      currentUsageStats = rateLimitStats as AlpacaUsageStats;
+      console.log(`📊 Alpaca API: ${rateLimitStats.requestsRemaining}/${rateLimitStats.requestsLimit} requests remaining (${rateLimitStats.percentUsed}% used)`);
+    } else {
+      // Fallback: If headers not found, log all headers for debugging
+      console.log('⚠️  Could not extract rate limit headers. Available headers:');
+      response.headers.forEach((value, key) => {
+        console.log(`  ${key}: ${value}`);
+      });
+    }
+
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error('Alpaca API rate limit exceeded (200 req/min)');
+        const retryAfter = response.headers.get('Retry-After');
+        const retryMessage = retryAfter ? ` Retry after ${retryAfter} seconds.` : '';
+        throw new Error(`Alpaca API rate limit exceeded (${currentUsageStats?.requestsLimit || 200} req/min).${retryMessage}`);
       }
       if (response.status === 401) {
         throw new Error('Alpaca API authentication failed - check your API keys');

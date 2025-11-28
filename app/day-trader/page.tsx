@@ -38,12 +38,25 @@ interface MarketStatus {
   minutesUntilChange?: number;
 }
 
+interface AlpacaUsageStats {
+  available: boolean;
+  stats?: {
+    requestsLimit: number;
+    requestsRemaining: number;
+    resetTime: string;
+    lastUpdated: string;
+    percentUsed: number;
+  };
+  message?: string;
+}
+
 export default function DayTraderPage() {
   const [opportunities, setOpportunities] = useState<IntradayOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [scannerRunning, setScannerRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
+  const [alpacaUsage, setAlpacaUsage] = useState<AlpacaUsageStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
@@ -93,6 +106,17 @@ export default function DayTraderPage() {
       setMarketStatus(data);
     } catch (err) {
       console.error('Error fetching market status:', err);
+    }
+  };
+
+  // Fetch Alpaca usage stats
+  const fetchAlpacaUsage = async () => {
+    try {
+      const response = await fetch('/api/alpaca-usage');
+      const data = await response.json();
+      setAlpacaUsage(data);
+    } catch (err) {
+      console.error('Error fetching Alpaca usage:', err);
     }
   };
 
@@ -149,9 +173,10 @@ export default function DayTraderPage() {
           description: 'New opportunities have been found. Refreshing...',
         });
 
-        // Refresh opportunities after scan completes
+        // Refresh opportunities and usage stats after scan completes
         setTimeout(() => {
           fetchOpportunities();
+          fetchAlpacaUsage();
         }, 1000);
       }
     } catch (err) {
@@ -174,10 +199,12 @@ export default function DayTraderPage() {
     if (user) {
       fetchOpportunities();
       fetchMarketStatus();
+      fetchAlpacaUsage();
 
       const interval = setInterval(() => {
         fetchOpportunities();
         fetchMarketStatus();
+        fetchAlpacaUsage();
       }, 10000); // 10 seconds
 
       return () => clearInterval(interval);
@@ -286,25 +313,58 @@ export default function DayTraderPage() {
         </div>
       </div>
 
-      {/* Market Status Card */}
-      {marketStatus && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Activity className={`h-5 w-5 ${marketStatus.isOpen ? 'text-green-500' : 'text-red-500'}`} />
-                <div>
-                  <p className="font-semibold">Market Status: {marketStatus.status.toUpperCase()}</p>
-                  <p className="text-sm text-muted-foreground">{marketStatus.message}</p>
+      {/* Market Status & API Usage Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Market Status Card */}
+        {marketStatus && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Activity className={`h-5 w-5 ${marketStatus.isOpen ? 'text-green-500' : 'text-red-500'}`} />
+                  <div>
+                    <p className="font-semibold">Market Status: {marketStatus.status.toUpperCase()}</p>
+                    <p className="text-sm text-muted-foreground">{marketStatus.message}</p>
+                  </div>
                 </div>
+                <Badge className={marketStatus.isOpen ? 'bg-green-500' : 'bg-red-500'}>
+                  {marketStatus.isOpen ? 'OPEN' : 'CLOSED'}
+                </Badge>
               </div>
-              <Badge className={marketStatus.isOpen ? 'bg-green-500' : 'bg-red-500'}>
-                {marketStatus.isOpen ? 'OPEN' : 'CLOSED'}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alpaca API Usage Card */}
+        {alpacaUsage?.available && alpacaUsage.stats && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Activity className={`h-5 w-5 ${
+                    alpacaUsage.stats.percentUsed >= 90 ? 'text-red-500' :
+                    alpacaUsage.stats.percentUsed >= 70 ? 'text-orange-500' :
+                    'text-green-500'
+                  }`} />
+                  <div>
+                    <p className="font-semibold">Alpaca API Usage</p>
+                    <p className="text-sm text-muted-foreground">
+                      {alpacaUsage.stats.requestsRemaining}/{alpacaUsage.stats.requestsLimit} requests remaining
+                    </p>
+                  </div>
+                </div>
+                <Badge className={
+                  alpacaUsage.stats.percentUsed >= 90 ? 'bg-red-500' :
+                  alpacaUsage.stats.percentUsed >= 70 ? 'bg-orange-500' :
+                  'bg-green-500'
+                }>
+                  {alpacaUsage.stats.percentUsed}% USED
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Error Display */}
       {error && (
