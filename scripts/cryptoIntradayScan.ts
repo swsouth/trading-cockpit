@@ -81,15 +81,27 @@ async function analyzeCrypto(
     // Detect channel
     const channel = detectChannel(candles);
 
-    if (!channel.hasChannel) {
-      console.log(`   ⚠️  ${symbol}: No channel detected`);
-      return null;
-    }
+    // Detect patterns
+    const { detectPatterns } = await import('@/lib/analysis');
+    const pattern = detectPatterns(candles);
 
-    console.log(`   ✓ ${symbol}: Channel detected (${channel.status})`);
+    // Analyze volume and absorption (for high confidence determination)
+    const { analyzeVolume } = await import('@/lib/scoring');
+    const { detectAbsorption } = await import('@/lib/orderflow');
+    const volume = analyzeVolume(candles);
+    const absorption = detectAbsorption(candles, volume);
 
-    // Generate trade recommendation
-    const recommendation = generateTradeRecommendation(candles, channel);
+    console.log(`   ✓ ${symbol}: Channel: ${channel.hasChannel ? 'YES' : 'NO'}, Pattern: ${pattern.mainPattern}`);
+
+    // Generate trade recommendation (correct signature with volume and absorption)
+    const recommendation = generateTradeRecommendation({
+      symbol,
+      candles,
+      channel,
+      pattern,
+      volume,
+      absorption,
+    });
 
     if (!recommendation) {
       console.log(`   ⚠️  ${symbol}: No actionable setup`);
@@ -100,10 +112,10 @@ async function analyzeCrypto(
     const scoring = calculateIntradayOpportunityScore(
       candles,
       channel,
-      recommendation.pattern,
+      pattern,
       recommendation.entry,
       recommendation.target,
-      recommendation.stop
+      recommendation.stopLoss
     );
 
     // Current price (last close)
@@ -115,10 +127,10 @@ async function analyzeCrypto(
     const opportunity: CryptoOpportunity = {
       symbol,
       timeframe: config.timeframe,
-      recommendation_type: recommendation.type,
+      recommendation_type: recommendation.setup.type as 'long' | 'short',
       entry_price: recommendation.entry,
       target_price: recommendation.target,
-      stop_loss: recommendation.stop,
+      stop_loss: recommendation.stopLoss,
       opportunity_score: scoring.totalScore,
       confidence_level: scoring.confidenceLevel,
       rationale: recommendation.rationale,
@@ -129,8 +141,8 @@ async function analyzeCrypto(
 
       // Technical details
       channel_status: channel.status,
-      pattern_detected: recommendation.pattern.mainPattern,
-      rsi: recommendation.rsi || null,
+      pattern_detected: pattern.mainPattern,
+      rsi: scoring.components.momentumScore || null,
     };
 
     console.log(`   ✅ ${symbol}: Found ${opportunity.recommendation_type.toUpperCase()} setup (score: ${scoring.totalScore})`);

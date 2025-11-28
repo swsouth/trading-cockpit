@@ -110,15 +110,23 @@ async function analyzeIntradayStock(
     const { detectPatterns } = await import('@/lib/analysis');
     const patternResult = detectPatterns(candles);
 
+    // Analyze volume and absorption (for high confidence determination)
+    const { analyzeVolume } = await import('@/lib/scoring');
+    const { detectAbsorption } = await import('@/lib/orderflow');
+    const volume = analyzeVolume(candles);
+    const absorption = detectAbsorption(candles, volume);
+
     console.log(`   Channel: ${channelResult.hasChannel ? 'YES' : 'NO'}, Pattern: ${patternResult.mainPattern}`);
 
-    // Generate trade recommendation
+    // Generate trade recommendation (with volume and absorption for Phase 1 fixes)
     const recommendation = generateTradeRecommendation({
       symbol,
       candles,
       channel: channelResult,
       pattern: patternResult,
       currentPrice,
+      volume,
+      absorption,
     });
 
     if (!recommendation) {
