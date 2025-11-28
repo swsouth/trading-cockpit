@@ -204,8 +204,9 @@ function buildIntradayRationale(
     parts.push(`Pattern: ${recommendation.setup.pattern}`);
   }
 
-  // Score breakdown
-  parts.push(`Score: ${score.totalScore}/100 (Trend: ${score.components.trend}, Pattern: ${score.components.pattern}, Volume: ${score.components.volume})`);
+  // Score breakdown - use correct component property names
+  const components = score.components;
+  parts.push(`Score: ${score.totalScore}/100 (Trend: ${components.trendStrength || 0}, Pattern: ${components.patternQuality || 0}, Volume: ${components.volumeScore || 0})`);
 
   return parts.join(' | ');
 }
