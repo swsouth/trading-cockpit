@@ -158,56 +158,115 @@ async function analyzeCrypto(
  * Store crypto opportunities in database
  */
 async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<void> {
+  console.log(`\n💾 storeOpportunities() called with ${opportunities.length} crypto opportunities`);
+
+  if (opportunities.length === 0) {
+    console.log('   ⚠️  No opportunities to store (empty array)');
+    return;
+  }
+
+  // Log each opportunity before processing
+  opportunities.forEach((opp, index) => {
+    console.log(`   ${index + 1}. ${opp.symbol} ${opp.recommendation_type.toUpperCase()} @ $${opp.entry_price.toFixed(2)} (Score: ${opp.opportunity_score})`);
+  });
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error('   ❌ Supabase configuration missing!');
+    console.error(`      NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? 'SET' : 'MISSING'}`);
+    console.error(`      SUPABASE_SERVICE_ROLE_KEY: ${supabaseKey ? 'SET' : 'MISSING'}`);
     throw new Error('Supabase configuration missing');
   }
 
+  console.log('   ✅ Supabase credentials verified');
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Get authenticated user (for user_id)
-  // For automated scanner, we'll use a system user or skip user_id requirement
-  // For now, we'll insert without user_id and let RLS handle it
-  // TODO: Consider adding a system user or modifying RLS for scanner-generated opportunities
+  // First, mark all existing crypto opportunities as expired (cleanup)
+  console.log('   🧹 Marking expired crypto opportunities...');
+  const { error: expireError } = await supabase
+    .from('intraday_opportunities')
+    .update({ status: 'expired' })
+    .lt('expires_at', new Date().toISOString())
+    .eq('status', 'active')
+    .eq('asset_type', 'crypto');
 
-  console.log(`\n📊 Storing ${opportunities.length} crypto opportunities...`);
+  if (expireError) {
+    console.error('   ⚠️  Error marking expired opportunities:', expireError);
+  } else {
+    console.log('   ✅ Expired crypto opportunities marked');
+  }
+
+  // Get first user from database (for single-user MVP)
+  // TODO: When multi-user, scan should create opportunities for all users
+  console.log('   👤 Fetching user ID...');
+  const { data: users, error: userError } = await supabase.auth.admin.listUsers();
+
+  if (userError) {
+    console.error('   ❌ Error fetching users:', userError);
+    return;
+  }
+
+  const userId = users?.users?.[0]?.id;
+
+  if (!userId) {
+    console.error('   ❌ No user found in database - cannot store opportunities');
+    console.error(`      Users data:`, users);
+    return;
+  }
+
+  console.log(`   ✅ User ID: ${userId}`);
+
+  // Insert new crypto opportunities
+  console.log(`   📝 Inserting ${opportunities.length} crypto records into database...`);
+
+  let successCount = 0;
+  let failCount = 0;
 
   for (const opp of opportunities) {
     try {
-      const { error } = await supabase
+      const record = {
+        user_id: userId,
+        symbol: opp.symbol,
+        timeframe: opp.timeframe,
+        scan_timestamp: opp.scan_timestamp,
+        recommendation_type: opp.recommendation_type,
+        entry_price: opp.entry_price,
+        target_price: opp.target_price,
+        stop_loss: opp.stop_loss,
+        opportunity_score: opp.opportunity_score,
+        confidence_level: opp.confidence_level,
+        rationale: opp.rationale,
+        current_price: opp.current_price,
+        expires_at: opp.expires_at,
+        status: 'active',
+        channel_status: opp.channel_status,
+        pattern_detected: opp.pattern_detected,
+        rsi: opp.rsi,
+        asset_type: opp.asset_type,
+      };
+
+      const { data, error } = await supabase
         .from('intraday_opportunities')
-        .insert({
-          // No user_id for system-generated opportunities
-          symbol: opp.symbol,
-          timeframe: opp.timeframe,
-          scan_timestamp: opp.scan_timestamp,
-          recommendation_type: opp.recommendation_type,
-          entry_price: opp.entry_price,
-          target_price: opp.target_price,
-          stop_loss: opp.stop_loss,
-          opportunity_score: opp.opportunity_score,
-          confidence_level: opp.confidence_level,
-          rationale: opp.rationale,
-          current_price: opp.current_price,
-          expires_at: opp.expires_at,
-          status: 'active',
-          channel_status: opp.channel_status,
-          pattern_detected: opp.pattern_detected,
-          rsi: opp.rsi,
-          asset_type: opp.asset_type,
-        });
+        .insert(record)
+        .select();
 
       if (error) {
         console.error(`   ❌ Failed to store ${opp.symbol}:`, error.message);
+        console.error('      Error details:', JSON.stringify(error, null, 2));
+        failCount++;
       } else {
-        console.log(`   ✓ Stored ${opp.symbol}`);
+        console.log(`   ✅ Stored ${opp.symbol} (ID: ${data[0]?.id})`);
+        successCount++;
       }
     } catch (err) {
       console.error(`   ❌ Error storing ${opp.symbol}:`, err);
+      failCount++;
     }
   }
+
+  console.log(`\n   📊 Storage Summary: ${successCount} success, ${failCount} failed`);
 }
 
 /**

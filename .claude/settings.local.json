@@ -3,7 +3,19 @@
     "allow": [
       "Bash(xargs kill:*)",
       "Bash(pkill:*)",
-      "WebFetch(domain:docs.coinapi.io)"
+      "WebFetch(domain:docs.coinapi.io)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run test-scanner:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebSearch",
+      "Bash(node -e:*)",
+      "Bash(npx tsx:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_tables"
     ],
     "deny": [],
     "ask": []

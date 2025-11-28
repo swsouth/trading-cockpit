@@ -216,35 +216,64 @@ function buildIntradayRationale(
 async function storeIntradayOpportunities(
   opportunities: IntradayOpportunity[]
 ): Promise<number> {
+  console.log(`\n💾 storeIntradayOpportunities() called with ${opportunities.length} opportunities`);
+
   if (opportunities.length === 0) {
+    console.log('   ⚠️  No opportunities to store (empty array)');
     return 0;
   }
+
+  // Log each opportunity before processing
+  opportunities.forEach((opp, index) => {
+    console.log(`   ${index + 1}. ${opp.symbol} ${opp.recommendation_type.toUpperCase()} @ $${opp.entry_price.toFixed(2)} (Score: ${opp.opportunity_score})`);
+  });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error('   ❌ Supabase configuration missing!');
+    console.error(`      NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? 'SET' : 'MISSING'}`);
+    console.error(`      SUPABASE_SERVICE_ROLE_KEY: ${supabaseKey ? 'SET' : 'MISSING'}`);
     throw new Error('Supabase configuration missing');
   }
 
+  console.log('   ✅ Supabase credentials verified');
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // First, mark all existing opportunities as expired (cleanup)
-  await supabase
+  console.log('   🧹 Marking expired opportunities...');
+  const { error: expireError } = await supabase
     .from('intraday_opportunities')
     .update({ status: 'expired' })
     .lt('expires_at', new Date().toISOString())
     .eq('status', 'active');
 
+  if (expireError) {
+    console.error('   ⚠️  Error marking expired opportunities:', expireError);
+  } else {
+    console.log('   ✅ Expired opportunities marked');
+  }
+
   // Get first user from database (for single-user MVP)
   // TODO: When multi-user, scan should create opportunities for all users
-  const { data: users } = await supabase.auth.admin.listUsers();
+  console.log('   👤 Fetching user ID...');
+  const { data: users, error: userError } = await supabase.auth.admin.listUsers();
+
+  if (userError) {
+    console.error('   ❌ Error fetching users:', userError);
+    return 0;
+  }
+
   const userId = users?.users?.[0]?.id;
 
   if (!userId) {
-    console.error('No user found in database - cannot store opportunities');
+    console.error('   ❌ No user found in database - cannot store opportunities');
+    console.error(`      Users data:`, users);
     return 0;
   }
+
+  console.log(`   ✅ User ID: ${userId}`);
 
   // Insert new opportunities
   const records = opportunities.map(opp => ({
@@ -267,14 +296,23 @@ async function storeIntradayOpportunities(
     status: 'active',
   }));
 
+  console.log(`   📝 Inserting ${records.length} records into database...`);
+  console.log(`      Sample record:`, JSON.stringify(records[0], null, 2));
+
   const { data, error } = await supabase
     .from('intraday_opportunities')
     .insert(records)
     .select();
 
   if (error) {
-    console.error('Error storing intraday opportunities:', error);
+    console.error('   ❌ Error storing intraday opportunities:', error);
+    console.error('      Error details:', JSON.stringify(error, null, 2));
     throw error;
+  }
+
+  console.log(`   ✅ Successfully inserted ${data?.length || 0} opportunities`);
+  if (data && data.length > 0) {
+    console.log(`      First inserted record ID: ${data[0].id}`);
   }
 
   return data?.length || 0;
