@@ -87,6 +87,23 @@ export default function DayTraderPage() {
     opp.asset_type === 'crypto'
   );
 
+  // Check if scanner should be disabled due to rate limits
+  const isStockScannerDisabled = () => {
+    if (!alpacaUsage?.available || !alpacaUsage.stats) return false;
+    // Alpaca: 200/min limit, disable if > 95% used
+    return alpacaUsage.stats.percentUsed >= 95;
+  };
+
+  const isCryptoScannerDisabled = () => {
+    if (!twelveDataUsage?.available || !twelveDataUsage.stats) return false;
+    // Twelve Data: 8/min OR 800/day limit, disable if either exceeded
+    // Using 100% threshold since we're at the limit (8/8 or 800/800)
+    return twelveDataUsage.stats.requestsUsedThisMinute >= twelveDataUsage.stats.requestsLimitPerMinute ||
+           twelveDataUsage.stats.requestsUsedToday >= twelveDataUsage.stats.requestsLimitPerDay;
+  };
+
+  const isScannerDisabled = activeTab === 'stocks' ? isStockScannerDisabled() : isCryptoScannerDisabled();
+
   // Fetch opportunities from database
   const fetchOpportunities = async () => {
     if (!user) return;
@@ -332,14 +349,30 @@ export default function DayTraderPage() {
           <p className="text-muted-foreground">Live intraday setups • Auto-refreshing every 10s</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={runScanner} disabled={scannerRunning} variant="default">
-            {scannerRunning ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="mr-2 h-4 w-4" />
+          <div className="relative group">
+            <Button
+              onClick={runScanner}
+              disabled={scannerRunning || isScannerDisabled}
+              variant="default"
+            >
+              {scannerRunning ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              {scannerRunning ? 'Scanning...' : `Run ${activeTab === 'stocks' ? 'Stock' : 'Crypto'} Scanner`}
+            </Button>
+            {isScannerDisabled && !scannerRunning && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {activeTab === 'stocks'
+                  ? 'Alpaca API limit reached - wait for reset'
+                  : (twelveDataUsage?.stats?.requestsUsedToday ?? 0) >= (twelveDataUsage?.stats?.requestsLimitPerDay ?? 800)
+                    ? 'Daily limit reached (800 calls) - resets at midnight'
+                    : 'Rate limit reached (8/min) - wait for reset'}
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+              </div>
             )}
-            {scannerRunning ? 'Scanning...' : `Run ${activeTab === 'stocks' ? 'Stock' : 'Crypto'} Scanner`}
-          </Button>
+          </div>
           <Button onClick={fetchOpportunities} disabled={loading} variant="outline">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
