@@ -349,8 +349,13 @@ export async function runIntradayMarketScan(
 
   // Get active symbols from database
   console.log('📊 Fetching active intraday stocks...');
-  const symbols = await getActiveIntradaySymbols();
-  console.log(`   Found ${symbols.length} active stocks\n`);
+  const allSymbols = await getActiveIntradaySymbols();
+  console.log(`   Found ${allSymbols.length} active stocks in database\n`);
+
+  // TEMPORARY: Limit to 7 stocks to stay under Twelve Data rate limit (8 calls/min)
+  // TODO: Implement batching or upgrade to paid tier for production
+  const symbols = allSymbols.slice(0, 7);
+  console.log(`   🚧 Rate limit protection: Scanning first ${symbols.length} stocks only\n`);
 
   console.log(`Scanning ${symbols.length} high-volume stocks...`);
   console.log(`Timeframe: ${config.timeframe} bars (${config.lookbackBars} bars = ${(config.lookbackBars * 5) / 60} hours)`);
@@ -375,7 +380,7 @@ export async function runIntradayMarketScan(
       successful++; // Still counts as successful scan, just no setup
     }
 
-    // Small delay to avoid hammering API (Alpaca allows 200 req/min)
+    // Small delay between API calls (respects Twelve Data rate limits)
     await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s delay
   }
 
