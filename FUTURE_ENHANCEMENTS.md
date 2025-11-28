@@ -41,6 +41,235 @@
   - Aggregated real-time crypto data
   - Professional-grade streaming
 
+---
+
+## Crypto Intraday Scanner with 5-Minute Bars
+
+**Status:** Proof-of-concept phase
+**Priority:** Medium - Validate with 5-10 cryptos first
+**Current Provider:** Twelve Data (free tier) for POC
+**Upgrade Path:** CoinAPI or Twelve Data Pro when scaling to 100+ cryptos
+
+### Current State (POC - 5-10 Cryptos)
+
+**Using Twelve Data Free Tier:**
+- 800 API calls/day (free)
+- Native 5-minute OHLC support for crypto
+- Covers BTC, ETH, SOL, DOGE, ADA, AVAX, MATIC, LINK, DOT, UNI
+- 180+ cryptocurrency exchanges
+- Cost: **$0/month**
+
+**Limitations:**
+- Free tier sufficient for 5-10 cryptos maximum
+- 10 cryptos × 288 scans/day (24/7 at 5-min intervals) = 2,880 calls/day
+- Would exceed free tier limit (800/day)
+- **Solution:** Scan 5-10 cryptos OR reduce scan frequency to hourly for POC
+
+**POC Architecture:**
+```typescript
+// Scan 5-10 cryptos hourly (24/7)
+// 10 cryptos × 24 scans/day = 240 API calls/day ✅ Fits in free tier
+// Store in intraday_opportunities table with asset_type: 'crypto'
+// Display on Day Trader page crypto tab
+```
+
+### Scaling Options (When Proven)
+
+#### Option 1: Twelve Data Pro ($79/month) - Good for 100 Cryptos
+**Capacity:**
+- 30,000 API calls/day
+- 100 cryptos × 288 scans/day = 28,800 calls/day ✅ Fits with buffer
+- REST API only (no WebSocket)
+
+**Pros:**
+- ✅ Simple REST API (reuse existing patterns)
+- ✅ Clean pricing ($79/month flat)
+- ✅ Covers 100 cryptos comfortably
+- ✅ Same provider as stocks (if we use Twelve Data for stocks)
+
+**Cons:**
+- ⚠️ REST API = higher latency than WebSocket
+- ⚠️ Limited headroom for growth beyond 100 cryptos
+- ⚠️ No order book or Level 2 data
+
+**Best For:**
+- Scaling from POC to production with minimal changes
+- Maintaining consistency with existing REST patterns
+- 100 cryptos is enough for foreseeable future
+
+**Documentation:** [Twelve Data Crypto APIs](https://twelvedata.com/cryptocurrency)
+
+#### Option 2: CoinAPI Professional ($79/month) - Best for 100+ Cryptos
+**Capacity:**
+- 100,000 REST API credits/day
+- 100,000 WebSocket messages/day (Professional plan)
+- 100 cryptos × 1 WebSocket subscription each = 100 connections
+- Updates pushed every 5 seconds automatically
+- **Effective daily REST calls: ~100** (only for historical backfill)
+
+**Pros:**
+- ✅ WebSocket = 99% reduction in API calls (28,800 → 100/day)
+- ✅ 100,000 credit/day headroom = can scale to 200+ cryptos
+- ✅ Real-time updates (<100ms latency vs 1-2s REST)
+- ✅ Order book data available (future order flow analysis)
+- ✅ 370+ exchanges with standardized data
+- ✅ Professional-grade data quality
+- ✅ Future-proof for advanced features
+
+**Cons:**
+- ⚠️ WebSocket implementation more complex than REST
+- ⚠️ Need connection management, reconnection logic
+- ⚠️ Different API than stocks (if not using CoinAPI for stocks)
+
+**Best For:**
+- Scaling to 100+ cryptos
+- Adding order flow/absorption analysis to crypto
+- Professional-grade real-time data
+- Future features (order books, Level 2, tick data)
+
+**Documentation:**
+- [CoinAPI OHLCV Guide](https://docs.coinapi.io/market-data/how-to-guides/get-historical-ohlcv-data-using-coinapi)
+- [CoinAPI vs CoinGecko Comparison](https://www.coinapi.io/blog/coinapi-vs-coingecko-crypto-api-comparison)
+- [CoinAPI Pricing](https://www.coinapi.io/products/market-data-api/pricing)
+- [CoinAPI Rate Limits](https://www.coinapi.io/blog/api-rate-limits-and-credit-consumption-guide-coinapi-usage-and-billing-explained)
+
+#### Option 3: Hybrid Multi-Source (Recommended for Production)
+**Strategy:**
+- **Stocks (Daily/Swing):** FMP + Finnhub (current setup)
+- **Stocks (Intraday):** Twelve Data Basic ($29/mo) - 25 stocks max
+- **Crypto (Intraday):** CoinAPI Professional ($79/mo) - 100+ cryptos via WebSocket
+- **Crypto (Daily):** CoinGecko Free - swing trades
+
+**Total Cost:** $108/month
+**Total Capacity:** 25 stocks intraday + 100+ cryptos intraday + unlimited daily
+
+**Pros:**
+- ✅ Best tool for each job
+- ✅ Most efficient API usage
+- ✅ Highest quality data
+- ✅ Maximum flexibility
+
+**Cons:**
+- ⚠️ Managing multiple providers
+- ⚠️ Slightly higher cost
+
+### Capacity Comparison Table
+
+| Provider | Plan | Cost/Month | Daily Calls | Cryptos (5-min, 24/7) | Stocks (5-min) | Notes |
+|----------|------|------------|-------------|----------------------|----------------|-------|
+| **Twelve Data** | Free | $0 | 800 | ~2-3 ⚠️ | ~2-3 | POC only |
+| **Twelve Data** | Basic | $29 | 8,000 | ~27 | ~27 | Not worth it |
+| **Twelve Data** | Pro | $79 | 30,000 | ~100 ✅ | ~100 | Tight fit |
+| **CoinAPI** | Pro | $79 | 100,000 REST | ~200+ ✅ | ~200+ | With WebSocket |
+| **CoinAPI** | Pro (WebSocket) | $79 | Unlimited updates | **300+** ✅✅ | **300+** | Best efficiency |
+| **CoinGecko** | Free | $0 | ~7,200-21,600 | ❌ No 5-min bars | ❌ | Daily only |
+
+### Data Quality Comparison
+
+| Feature | CoinGecko Free | Twelve Data | CoinAPI |
+|---------|---------------|-------------|---------|
+| **5-Minute Bars** | ❌ No (30-min minimum) | ✅ Yes | ✅ Yes (1-min available) |
+| **WebSocket** | ❌ No | Limited | ✅ Full support |
+| **Volume Data** | ⚠️ Missing in OHLC | ✅ Included | ✅ Included |
+| **Exchange Coverage** | 900+ (aggregated) | 180+ | 370+ (granular) |
+| **Order Book** | ❌ No | ❌ No | ✅ Yes (Pro plan) |
+| **Latency** | High (~15 min) | Medium (1-2s REST) | Low (<100ms WebSocket) |
+| **Best For** | Daily/swing trades | POC/small scale | Production/scale |
+
+### Recommended Implementation Path
+
+**Phase 1: Proof of Concept (FREE - Twelve Data)**
+1. Use Twelve Data free tier
+2. Scan 5-10 major cryptos (BTC, ETH, SOL, DOGE, ADA)
+3. Scan hourly instead of every 5 minutes (240 calls/day vs 2,880)
+4. Validate scanner logic, UI, user value
+5. **Cost: $0/month**
+
+**Phase 2: Production Launch (Twelve Data Pro - $79/month)**
+When POC proves valuable:
+1. Upgrade to Twelve Data Pro
+2. Scan 100 cryptos every 5 minutes (28,800 calls/day)
+3. Same REST API patterns as POC
+4. Minimal code changes
+5. **Cost: $79/month**
+
+**Phase 3: Scale & Optimize (CoinAPI Pro - $79/month)**
+When hitting limits or need better data:
+1. Migrate to CoinAPI WebSocket
+2. Scale to 200+ cryptos without hitting limits
+3. Add order flow/absorption detection
+4. Enable multi-exchange analysis
+5. **Cost: $79/month (same price, 3x capacity)**
+
+### Why NOT CoinGecko for Intraday
+
+**Fatal Flaw:** No 5-minute bars available
+- Free tier: 30-minute minimum granularity
+- Paid plans: Hourly minimum (not 5-minute)
+- Data updates every 15 minutes (too slow for intraday)
+- **Verdict:** CoinGecko is great for daily/swing, not intraday
+
+**Source:** [CoinGecko OHLC Documentation](https://support.coingecko.com/hc/en-us/articles/4538892425113-How-to-get-Candlestick-OHLC-Kline-data-using-API)
+
+### Implementation Notes
+
+**Database Schema:** Already created
+- Migration: `20251128000000_add_asset_type_to_intraday.sql`
+- Column: `asset_type TEXT DEFAULT 'stock' CHECK (asset_type IN ('stock', 'crypto'))`
+- Indexes: Created for efficient filtering
+
+**UI:** Already implemented
+- Day Trader page has separate Stocks/Crypto tabs
+- Counts displayed on each tab
+- Crypto-specific messaging ("24/7 trading")
+- Empty states for each asset type
+
+**Scanner Logic:** Reusable
+- Same channel detection, pattern recognition, scoring
+- Uses `calculateIntradayOpportunityScore()` for 5-min bars
+- Time-of-day volume normalization already built-in
+- Just need crypto data source integration
+
+### Next Steps for POC
+
+1. Add `TWELVE_DATA_API_KEY` to `.env.local` (already in `.env.local.example`)
+2. Create `lib/twelveDataCrypto.ts` integration
+3. Create `scripts/cryptoIntradayScan.ts` scanner (hourly cron)
+4. Test with 5 cryptos: BTC, ETH, SOL, DOGE, ADA
+5. Monitor API usage vs free tier limit (800/day)
+6. Validate user value before upgrading
+
+**Estimated Effort:** 4-6 hours for POC implementation
+
+### Success Criteria for Upgrading
+
+Before spending $79/month, validate:
+- ✅ Scanner finds actionable crypto setups
+- ✅ Users engage with crypto tab regularly
+- ✅ Scoring algorithm works for crypto (volatility adjusted)
+- ✅ 5-10 cryptos generate enough opportunities
+- ✅ Users request more cryptos ("Can you add XYZ?")
+
+**If POC succeeds:** Upgrade to Twelve Data Pro ($79/month) for 100 cryptos
+**If users love it:** Consider CoinAPI Pro for WebSocket efficiency and scale
+
+### Cost-Benefit Analysis
+
+**POC Cost:** $0/month (Twelve Data free)
+**POC Value:** Validate $79/month decision risk-free
+
+**Production Cost:** $79/month (Twelve Data Pro or CoinAPI Pro)
+**Production Value:**
+- 100+ crypto opportunities daily (24/7 markets)
+- Competitive differentiator (most apps don't scan crypto)
+- Premium feature for monetization
+- Attracts crypto traders (large market segment)
+
+**ROI Calculation:**
+- Need 3-4 paid users at $25/month to cover cost
+- Or upsell existing users to premium for crypto access
+- Break-even: Very achievable if crypto tab proves valuable
+
 ### Decision Factors
 - Current use case: Technical analysis, pattern detection, swing trading
 - Daily/end-of-day data is sufficient for position trading
