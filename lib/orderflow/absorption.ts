@@ -36,10 +36,11 @@ export function detectAbsorption(
 
   // Look at last 5 candles for absorption pattern
   const recentCandles = candles.slice(-5);
-  const avgVolume = volume.avgVolume;
+  const avgVolume = volume.last30DaysAvg;
 
   for (let i = recentCandles.length - 1; i >= 0; i--) {
     const candle = recentCandles[i];
+    if (!candle.volume) continue; // Skip candles without volume data
     const volumeRatio = candle.volume / avgVolume;
     const bodySize = Math.abs(candle.close - candle.open);
     const range = candle.high - candle.low;
