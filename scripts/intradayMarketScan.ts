@@ -337,10 +337,14 @@ export async function runIntradayMarketScan(
   console.log(`Market Status: ${marketStatus.status.toUpperCase()}`);
   console.log(`${marketStatus.message}\n`);
 
-  if (!marketStatus.isOpen) {
-    console.log('⚠️  Market is closed. Skipping intraday scan.\n');
-    return;
-  }
+  // TEMPORARILY DISABLED: Allow scanning when market closed for testing
+  // TODO: Re-enable before production
+  // if (!marketStatus.isOpen) {
+  //   console.log('⚠️  Market is closed. Skipping intraday scan.\n');
+  //   return;
+  // }
+
+  console.log('⏰ Running scanner even though market is closed (testing mode)\n');
 
   // Get active symbols from database
   console.log('📊 Fetching active intraday stocks...');
