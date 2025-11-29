@@ -2,7 +2,7 @@
  * Twelve Data API Usage Endpoint
  *
  * Returns current API usage statistics from Twelve Data
- * Updated automatically whenever crypto intraday data is fetched
+ * Database-backed to persist across serverless function invocations
  */
 
 import { NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const stats = getTwelveDataUsageStats();
+    const stats = await getTwelveDataUsageStats();
 
     if (!stats) {
       return NextResponse.json({

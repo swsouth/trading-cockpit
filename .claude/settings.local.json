@@ -23,7 +23,8 @@
       "Bash(node test-alpaca.js:*)",
       "Bash(del test-alpaca.js)",
       "mcp__supabase__get_logs",
-      "mcp__supabase__apply_migration"
+      "mcp__supabase__apply_migration",
+      "Bash(curl -I https://api.twelvedata.com)"
     ],
     "deny": [],
     "ask": []

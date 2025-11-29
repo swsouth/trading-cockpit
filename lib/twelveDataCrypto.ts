@@ -6,6 +6,7 @@
  */
 
 import { Candle } from './types';
+import { trackApiCall, getRateLimitInfo, type RateLimitInfo } from './apiRateLimits';
 
 // Twelve Data API Base URL
 const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
@@ -17,7 +18,13 @@ const getTwelveDataApiKey = () => process.env.TWELVE_DATA_API_KEY;
 const cryptoCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds for intraday (faster refresh)
 
-// Twelve Data API usage stats (updated on each API call)
+// Twelve Data API limits (free tier)
+const TWELVE_DATA_LIMITS = {
+  perMinute: 8,
+  perDay: 800,
+};
+
+// Twelve Data API usage stats (database-backed)
 export interface TwelveDataUsageStats {
   requestsLimitPerMinute: number;    // 8 per minute on free tier
   requestsLimitPerDay: number;       // 800 per day on free tier
@@ -29,62 +36,27 @@ export interface TwelveDataUsageStats {
   resetTime: Date;                   // When minute limit resets
 }
 
-let currentTwelveDataUsage: TwelveDataUsageStats | null = null;
-
 /**
- * Get current Twelve Data API usage statistics
+ * Get current Twelve Data API usage statistics (database-backed)
  * Returns null if no API calls have been made yet
  */
-export function getTwelveDataUsageStats(): TwelveDataUsageStats | null {
-  return currentTwelveDataUsage;
-}
+export async function getTwelveDataUsageStats(): Promise<TwelveDataUsageStats | null> {
+  try {
+    const rateLimitInfo = await getRateLimitInfo('twelve-data', TWELVE_DATA_LIMITS);
 
-/**
- * Update usage stats from Twelve Data response
- * Twelve Data doesn't return headers, so we track manually
- */
-function updateUsageStats(): void {
-  const now = new Date();
-
-  if (!currentTwelveDataUsage) {
-    // Initialize tracking
-    currentTwelveDataUsage = {
-      requestsLimitPerMinute: 8,      // Free tier limit
-      requestsLimitPerDay: 800,       // Free tier limit
-      requestsUsedThisMinute: 1,
-      requestsUsedToday: 1,
-      lastUpdated: now,
-      percentUsedMinute: Math.round((1 / 8) * 100),
-      percentUsedDay: Math.round((1 / 800) * 100),
-      resetTime: new Date(now.getTime() + 60000), // 1 minute from now
+    return {
+      requestsLimitPerMinute: rateLimitInfo.limitPerMinute,
+      requestsLimitPerDay: rateLimitInfo.limitPerDay,
+      requestsUsedThisMinute: rateLimitInfo.usedThisMinute,
+      requestsUsedToday: rateLimitInfo.usedToday,
+      lastUpdated: new Date(),
+      percentUsedMinute: rateLimitInfo.percentUsedMinute,
+      percentUsedDay: rateLimitInfo.percentUsedDay,
+      resetTime: rateLimitInfo.minuteResetTime,
     };
-  } else {
-    const timeSinceLastCall = now.getTime() - currentTwelveDataUsage.lastUpdated.getTime();
-
-    // If more than 1 minute passed, reset minute counter
-    if (timeSinceLastCall >= 60000) {
-      currentTwelveDataUsage.requestsUsedThisMinute = 1;
-      currentTwelveDataUsage.resetTime = new Date(now.getTime() + 60000);
-    } else {
-      currentTwelveDataUsage.requestsUsedThisMinute++;
-    }
-
-    // Check if it's a new day (reset day counter)
-    const lastCallDay = currentTwelveDataUsage.lastUpdated.toDateString();
-    const currentDay = now.toDateString();
-    if (lastCallDay !== currentDay) {
-      currentTwelveDataUsage.requestsUsedToday = 1;
-    } else {
-      currentTwelveDataUsage.requestsUsedToday++;
-    }
-
-    currentTwelveDataUsage.lastUpdated = now;
-    currentTwelveDataUsage.percentUsedMinute = Math.round(
-      (currentTwelveDataUsage.requestsUsedThisMinute / currentTwelveDataUsage.requestsLimitPerMinute) * 100
-    );
-    currentTwelveDataUsage.percentUsedDay = Math.round(
-      (currentTwelveDataUsage.requestsUsedToday / currentTwelveDataUsage.requestsLimitPerDay) * 100
-    );
+  } catch (error) {
+    console.error('Error fetching Twelve Data usage stats:', error);
+    return null;
   }
 }
 
@@ -161,8 +133,13 @@ export async function getCryptoIntradayCandles(
 
     const response = await fetch(url.toString());
 
-    // Update usage stats after each API call
-    updateUsageStats();
+    // Track API call in database (persists across serverless invocations)
+    try {
+      await trackApiCall('twelve-data', TWELVE_DATA_LIMITS);
+    } catch (trackError) {
+      console.error('Error tracking API call:', trackError);
+      // Continue even if tracking fails
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
