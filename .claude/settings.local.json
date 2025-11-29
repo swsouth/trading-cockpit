@@ -26,7 +26,8 @@
       "mcp__supabase__apply_migration",
       "Bash(curl -I https://api.twelvedata.com)",
       "Bash(npm run dev:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run scan-market:*)"
     ],
     "deny": [],
     "ask": []

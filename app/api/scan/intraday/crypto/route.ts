@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log('✓ Importing crypto scanner module');
-      const { runCryptoScan } = await import('@/scripts/cryptoIntradayScan');
+      const { runCryptoScan } = await import('@/lib/cryptoScanner');
       console.log('✅ Crypto scanner module imported successfully');
 
       console.log('✓ Starting crypto scan');
