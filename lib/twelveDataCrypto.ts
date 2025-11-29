@@ -134,12 +134,10 @@ export async function getCryptoIntradayCandles(
     const response = await fetch(url.toString());
 
     // Track API call in database (persists across serverless invocations)
-    try {
-      await trackApiCall('twelve-data', TWELVE_DATA_LIMITS);
-    } catch (trackError) {
-      console.error('Error tracking API call:', trackError);
-      // Continue even if tracking fails
-    }
+    // Fire and forget - don't await to avoid blocking
+    trackApiCall('twelve-data', TWELVE_DATA_LIMITS).catch(err => {
+      console.error('Error tracking API call:', err);
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
