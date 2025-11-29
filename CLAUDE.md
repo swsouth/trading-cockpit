@@ -436,12 +436,45 @@ Before going live:
 
 ---
 
+## Paper Trading Integration (NEW!)
+
+**Location:** `docs/PAPER_TRADING_GUIDE.md` and `PAPER_TRADING_SUMMARY.md`
+
+### Features
+- ✅ One-click paper trade execution from recommendations page
+- ✅ Automatic position sizing (1% account risk default)
+- ✅ Trade validation and pre-flight checks
+- ✅ Integration with Alpaca MCP server
+- ✅ Real-time toast notifications
+
+### Quick Start
+```bash
+npm run test-populate  # Generate test recommendations
+npm run dev           # Start dev server
+# Navigate to /recommendations
+# Click "Paper Trade" button on any recommendation
+```
+
+### Files
+- `lib/paperTrade.ts` - Position sizing & validation
+- `hooks/use-paper-trade.ts` - React hook for execution
+- `components/RecommendationCard.tsx` - UI integration
+- `scripts/testPaperTrade.ts` - Unit tests
+
+### Testing
+```bash
+npm run test-paper-trade  # Run position sizing tests
+```
+
+---
+
 ## Quick Reference
 
 | Task | Command | Location |
 |------|---------|----------|
 | Start dev server | `npm run dev` | `project/` |
 | Test scanner | `npm run test-scanner` | `project/` |
+| Test paper trading | `npm run test-paper-trade` | `project/` |
 | Full scan | `npm run scan-market` | `project/` |
 | Populate DB | `npm run populate-universe` | `project/` |
 | Type check | `npm run typecheck` | `project/` |

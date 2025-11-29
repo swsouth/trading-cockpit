@@ -14,6 +14,7 @@ import {
   Calendar,
   TrendingUpIcon,
   BarChart3,
+  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import ChartModal from './ChartModal';
@@ -21,10 +22,12 @@ import { getCompanyName } from '@/lib/stockNames';
 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
+  onPaperTrade?: (recommendation: TradeRecommendation) => void;
 }
 
-export function RecommendationCard({ recommendation }: RecommendationCardProps) {
+export function RecommendationCard({ recommendation, onPaperTrade }: RecommendationCardProps) {
   const [isChartOpen, setIsChartOpen] = useState(false);
+  const [isPaperTrading, setIsPaperTrading] = useState(false);
 
   const {
     symbol,
@@ -277,14 +280,28 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
             <Calendar className="h-3 w-3" />
             <span>Scanned: {new Date(scan_date).toLocaleDateString()}</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsChartOpen(true)}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            View Chart
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsChartOpen(true)}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              View Chart
+            </Button>
+            {onPaperTrade && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => onPaperTrade(recommendation)}
+                disabled={isPaperTrading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                {isPaperTrading ? 'Trading...' : 'Paper Trade'}
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
 

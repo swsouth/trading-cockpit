@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, TrendingUp, RefreshCw, Target, AlertCircle } from 'lucide-react';
 import { RecommendationCard } from '@/components/RecommendationCard';
+import { PaperTradeConfirmDialog } from '@/components/PaperTradeConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
+import { usePaperTrade, PaperTradePrep } from '@/hooks/use-paper-trade';
 
 interface RecommendationStats {
   total: number;
@@ -36,6 +38,16 @@ export default function RecommendationsPage() {
   const [loading, setLoading] = useState(false);
   const [latestScanDate, setLatestScanDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Paper trading hook
+  const { preparePaperTrade, executePaperTrade, tradePrep, isLoading: isPaperTrading } = usePaperTrade({
+    accountEquity: 100000, // $100k paper account
+    riskPercent: 1, // Risk 1% per trade
+  });
+
+  // Confirmation dialog state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingTrade, setPendingTrade] = useState<PaperTradePrep | null>(null);
 
   // Filters
   const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
@@ -120,6 +132,30 @@ export default function RecommendationsPage() {
     fetchRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendationTypeFilter, confidenceFilter, minScore, sortBy, sortOrder]);
+
+  // Handle paper trade button click
+  const handlePaperTradeClick = async (recommendation: TradeRecommendation) => {
+    const prep = await preparePaperTrade(recommendation);
+    if (prep) {
+      setPendingTrade(prep);
+      setConfirmDialogOpen(true);
+    }
+  };
+
+  // Handle confirmation dialog confirm
+  const handleConfirmTrade = async () => {
+    if (pendingTrade) {
+      await executePaperTrade(pendingTrade);
+      setConfirmDialogOpen(false);
+      setPendingTrade(null);
+    }
+  };
+
+  // Handle confirmation dialog cancel
+  const handleCancelTrade = () => {
+    setConfirmDialogOpen(false);
+    setPendingTrade(null);
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -462,9 +498,31 @@ export default function RecommendationsPage() {
           ? recommendations.filter(r => r.symbol === symbolFilter)
           : recommendations
         ).map((recommendation) => (
-          <RecommendationCard key={recommendation.id} recommendation={recommendation} />
+          <RecommendationCard
+            key={recommendation.id}
+            recommendation={recommendation}
+            onPaperTrade={handlePaperTradeClick}
+          />
         ))}
       </div>
+
+      {/* Confirmation Dialog */}
+      {pendingTrade && (
+        <PaperTradeConfirmDialog
+          open={confirmDialogOpen}
+          onOpenChange={setConfirmDialogOpen}
+          recommendation={pendingTrade.recommendation}
+          shares={pendingTrade.shares}
+          costBasis={pendingTrade.costBasis}
+          dollarRisk={pendingTrade.dollarRisk}
+          riskPercent={1}
+          currentPrice={pendingTrade.currentPrice}
+          priceDeviation={pendingTrade.priceDeviation}
+          marketWarning={pendingTrade.marketWarning}
+          onConfirm={handleConfirmTrade}
+          onCancel={handleCancelTrade}
+        />
+      )}
     </div>
   );
 }

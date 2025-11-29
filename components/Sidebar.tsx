@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Library, Settings, TrendingUp, LogOut, User, X, Search, Target, Clock } from 'lucide-react';
+import { BarChart3, Library, Settings, TrendingUp, LogOut, User, X, Search, Target, Clock, DollarSign } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/scanner', label: 'Scanner', icon: Search },
   { href: '/recommendations', label: 'Recommendations', icon: Target },
+  { href: '/paper-trading/positions', label: 'Paper Trading', icon: DollarSign },
   { href: '/day-trader', label: 'Day Trader', icon: Clock },
   { href: '/library', label: 'Library', icon: Library },
   { href: '/settings', label: 'Settings', icon: Settings },

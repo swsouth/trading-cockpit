@@ -1,6 +1,76 @@
 # Session Log
 
-## Current Session (2025-11-23 Part 2)
+## Current Session (2025-11-29 - Alpaca MCP Integration)
+
+### Major Achievement: Alpaca MCP Server Setup ⭐
+
+#### What Was Done
+1. **Added Alpaca MCP to Configuration** ✅
+   - Updated `.mcp.json` with Alpaca MCP server config
+   - Uses existing `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_BASE_URL` from `.env.local`
+   - Paper trading account ready ($100,000 virtual cash)
+
+2. **Created Test Infrastructure** ✅
+   - Built `scripts/testAlpacaMcp.ts` - Environment verification script
+   - Verified all required env vars present and valid
+   - Confirmed paper account URL: `https://paper-api.alpaca.markets/v2`
+
+3. **Comprehensive Documentation** ✅
+   - Created `docs/ALPACA_MCP_SETUP.md` (comprehensive guide)
+   - Documented all 43 MCP endpoints available
+   - Mapped use cases to Personal Trading Cockpit features
+   - Provided implementation roadmap for paper trading validation
+
+#### Key Capabilities Unlocked
+
+**Paper Trading Validation Loop (CRITICAL):**
+- Auto-place paper trades for top 10 daily recommendations
+- Monitor positions automatically
+- Close at target/stop
+- Calculate actual win rate, R:R achieved
+- Prove scanner works with real data
+
+**Available Tools (43 endpoints):**
+- Account & Portfolio: 8 tools (positions, history, watchlists)
+- Market Data - Stocks: 8 tools (bars, quotes, trades, snapshots)
+- Market Data - Crypto: 7 tools (unified with stocks)
+- Market Data - Options: 5 tools (contracts, Greeks, IV)
+- Trading Operations: 6 tools (orders, execution, cancellation)
+- Corporate Actions & Calendar: 5 tools (earnings, splits, calendar)
+- Other: 4 tools (asset search, movers, news)
+
+#### Value Proposition
+
+**Immediate Benefits:**
+1. **Validation Loop** - Proves scanner works (or shows improvements needed)
+2. **Unified Interface** - Stocks + crypto + options in one API
+3. **Cleaner Code** - MCP handles auth, rate limiting, error handling
+4. **Better Data** - 5-min bars for intraday, full options support
+
+**Next Steps:**
+1. Restart Claude Code to load Alpaca MCP server
+2. Test connection via natural language prompts
+3. Implement paper trading validator (`lib/paperTradingValidator.ts`)
+4. Create `recommendation_feedback` table
+5. Automate validation via daily script
+
+#### Files Created/Modified
+**Created (2):**
+- `scripts/testAlpacaMcp.ts` - MCP connection test script
+- `docs/ALPACA_MCP_SETUP.md` - Comprehensive setup & usage guide
+
+**Modified (1):**
+- `.mcp.json` - Added Alpaca MCP server configuration
+
+#### Status
+- ✅ Configuration complete
+- ⏳ Requires Claude Code restart to activate
+- 📋 Implementation roadmap documented
+- 🎯 Ready for paper trading validation loop
+
+---
+
+## Previous Session (2025-11-23 Part 2)
 
 ### Major Achievements
 
