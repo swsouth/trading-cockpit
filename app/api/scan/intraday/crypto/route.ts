@@ -3,6 +3,8 @@
  *
  * Allows authenticated users to manually trigger crypto intraday scanner
  * Crypto markets are 24/7, so no market hours check needed
+ *
+ * Uses database-backed rate limiting for Twelve Data API (8/min, 800/day)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
