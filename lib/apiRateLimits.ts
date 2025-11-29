@@ -43,51 +43,19 @@ export async function trackApiCall(
   const currentDay = new Date(now);
   currentDay.setHours(0, 0, 0, 0);
 
-  // Increment minute counter
-  const { data: minuteData } = await supabase
-    .from('api_rate_limits')
-    .upsert({
-      api_name: apiName,
-      time_window: 'minute',
-      window_start: currentMinute.toISOString(),
-      calls_count: 1,
-      updated_at: now.toISOString(),
-    }, {
-      onConflict: 'api_name,time_window,window_start',
-      ignoreDuplicates: false,
-    })
-    .select()
-    .single();
+  // Increment minute counter using raw SQL for atomic increment
+  await supabase.rpc('increment_api_call', {
+    p_api_name: apiName,
+    p_time_window: 'minute',
+    p_window_start: currentMinute.toISOString(),
+  });
 
-  // If record existed, increment it
-  if (minuteData && minuteData.calls_count === 1) {
-    // New record, already at 1
-  } else {
-    // Existing record, increment
-    await supabase
-      .from('api_rate_limits')
-      .update({
-        calls_count: (minuteData?.calls_count || 0) + 1,
-        updated_at: now.toISOString(),
-      })
-      .eq('api_name', apiName)
-      .eq('time_window', 'minute')
-      .eq('window_start', currentMinute.toISOString());
-  }
-
-  // Increment day counter
-  await supabase
-    .from('api_rate_limits')
-    .upsert({
-      api_name: apiName,
-      time_window: 'day',
-      window_start: currentDay.toISOString(),
-      calls_count: 1,
-      updated_at: now.toISOString(),
-    }, {
-      onConflict: 'api_name,time_window,window_start',
-      ignoreDuplicates: false,
-    });
+  // Increment day counter using raw SQL for atomic increment
+  await supabase.rpc('increment_api_call', {
+    p_api_name: apiName,
+    p_time_window: 'day',
+    p_window_start: currentDay.toISOString(),
+  });
 
   // Get updated counts
   const { data: minuteCount } = await supabase
