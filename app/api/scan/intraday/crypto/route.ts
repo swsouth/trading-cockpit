@@ -15,17 +15,22 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 Crypto scanner API route called');
+
   try {
+    console.log('✓ Checking authorization header');
     // Verify user is authenticated via Authorization header
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('❌ No authorization header');
       return NextResponse.json(
         { error: 'Unauthorized - please log in' },
         { status: 401 }
       );
     }
 
+    console.log('✓ Verifying session with Supabase');
     // Verify the session token with Supabase
     const token = authHeader.replace('Bearer ', '');
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -35,12 +40,14 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.log('❌ Invalid session:', authError?.message);
       return NextResponse.json(
         { error: 'Invalid session - please log in again' },
         { status: 401 }
       );
     }
 
+    console.log(`✓ User authenticated: ${user.email}`);
     // Run crypto scanner
     console.log(`🚀 Manual crypto intraday scan triggered by user ${user.email}`);
     console.log(`📊 Environment check:`);
@@ -49,12 +56,14 @@ export async function POST(request: NextRequest) {
     console.log(`   TWELVE_DATA_API_KEY: ${process.env.TWELVE_DATA_API_KEY ? 'SET' : 'MISSING'}`);
 
     try {
+      console.log('✓ Importing crypto scanner module');
       const { runCryptoScan } = await import('@/scripts/cryptoIntradayScan');
       console.log('✅ Crypto scanner module imported successfully');
 
+      console.log('✓ Starting crypto scan');
       const opportunitiesCount = await runCryptoScan();
 
-      console.log(`✅ Manual crypto intraday scan completed successfully - found ${opportunitiesCount} opportunities`);
+      console.log(`✅ Crypto scan completed - found ${opportunitiesCount} opportunities`);
 
       // Get updated usage stats after scan (database-backed)
       const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');

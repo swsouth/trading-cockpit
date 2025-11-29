@@ -24,7 +24,9 @@
       "Bash(del test-alpaca.js)",
       "mcp__supabase__get_logs",
       "mcp__supabase__apply_migration",
-      "Bash(curl -I https://api.twelvedata.com)"
+      "Bash(curl -I https://api.twelvedata.com)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
