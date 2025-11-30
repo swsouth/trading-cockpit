@@ -1,0 +1,18 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with slight gradient effect -->
+  <rect width="180" height="180" rx="40" fill="#10b981"/>
+
+  <!-- Upward trending chart line -->
+  <path d="M30 135 L52 108 L74 117 L96 81 L118 90 L150 45" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Arrow at the end -->
+  <path d="M150 45 L123 45 L123 72" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Data points -->
+  <circle cx="30" cy="135" r="8" fill="white"/>
+  <circle cx="52" cy="108" r="8" fill="white"/>
+  <circle cx="74" cy="117" r="8" fill="white"/>
+  <circle cx="96" cy="81" r="8" fill="white"/>
+  <circle cx="118" cy="90" r="8" fill="white"/>
+  <circle cx="150" cy="45" r="8" fill="white"/>
+</svg>

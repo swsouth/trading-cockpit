@@ -8,8 +8,12 @@ import { AuthProvider } from '@/lib/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Stock Trading Cockpit',
-  description: 'Personal stock trading analysis dashboard',
+  title: 'Trading Cockpit',
+  description: 'Personal stock trading analysis dashboard with automated market scanning and trade recommendations',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/apple-touch-icon.svg',
+  },
 };
 
 export default function RootLayout({
