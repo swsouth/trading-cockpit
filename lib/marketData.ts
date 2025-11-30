@@ -4,11 +4,17 @@
  * Fetches real-time quotes and historical OHLC data for stocks
  * with intelligent caching and database-first approach
  *
+ * DATA SOURCE PRIORITY (for stocks):
+ * 1. Yahoo Finance (FREE, unlimited) - PRIMARY for daily scanner
+ * 2. Twelve Data (800 calls/day) - FALLBACK, reserved for crypto
+ * 3. FMP (250 calls/day) - Last resort
+ *
  * NO MOCK DATA - Production-ready only
  */
 
 import { Quote, Candle } from './types';
 import { createClient } from '@supabase/supabase-js';
+import { getYahooHistoricalData } from './marketData/yahooFinanceAdapter';
 
 // API Base URLs
 const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
@@ -228,7 +234,17 @@ export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 
     }
   }
 
-  // Try Twelve Data API first (800 calls/day)
+  // Try Yahoo Finance first (FREE, unlimited - PRIMARY for stocks)
+  try {
+    console.log(`🔄 Trying Yahoo Finance for ${symbol}...`);
+    const candles = await getYahooHistoricalData(symbol, 365);
+    setCache(cacheKey, candles);
+    return candles;
+  } catch (error) {
+    console.warn(`Yahoo Finance failed for ${symbol}, trying Twelve Data:`, error);
+  }
+
+  // Fallback to Twelve Data API (800 calls/day, reserved for crypto)
   const twelveDataKey = getTwelveDataApiKey();
   if (twelveDataKey) {
     console.log(`🔄 Trying Twelve Data for ${symbol}...`);
@@ -244,10 +260,10 @@ export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 
     console.log(`⚠️  TWELVE_DATA_API_KEY not set, skipping Twelve Data`);
   }
 
-  // Fallback to FMP API (250 calls/day)
+  // Final fallback to FMP API (250 calls/day)
   const fmpKey = getFmpApiKey();
   if (!fmpKey) {
-    throw new Error(`No API keys configured (Twelve Data or FMP). Unable to fetch data for ${symbol}.`);
+    throw new Error(`No API keys configured (Yahoo Finance, Twelve Data, or FMP). Unable to fetch data for ${symbol}.`);
   }
 
   try {
@@ -257,7 +273,7 @@ export async function getDailyOHLC(symbol: string, source: 'database' | 'api' | 
     return candles;
   } catch (error) {
     // All sources failed
-    throw new Error(`Failed to fetch market data for ${symbol} from all sources (Database, Twelve Data, FMP). ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Failed to fetch market data for ${symbol} from all sources (Database, Yahoo Finance, Twelve Data, FMP). ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
