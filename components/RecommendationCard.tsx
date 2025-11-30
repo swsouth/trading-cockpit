@@ -275,16 +275,17 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
         )}
 
         {/* Metadata */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 text-xs text-muted-foreground pt-2 border-t">
           <div className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             <span>Scanned: {new Date(scan_date).toLocaleDateString()}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsChartOpen(true)}
+              className="w-full sm:w-auto min-h-[44px] sm:min-h-0"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
               View Chart
@@ -295,7 +296,7 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
                 size="sm"
                 onClick={() => onPaperTrade(recommendation)}
                 disabled={isPaperTrading}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto min-h-[44px] sm:min-h-0"
               >
                 <DollarSign className="h-4 w-4 mr-2" />
                 {isPaperTrading ? 'Trading...' : 'Paper Trade'}

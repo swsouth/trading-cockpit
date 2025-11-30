@@ -54,7 +54,11 @@
       "mcp__alpaca__get_orders",
       "Bash(node test-bracket-order.js:*)",
       "mcp__alpaca__cancel_all_orders",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "Bash(if exist apple-touch-icon.png.svg move apple-touch-icon.png.svg apple-touch-icon.svg)",
+      "Bash(if exist .next rmdir /s /q .next)",
+      "Bash(npm install:*)",
+      "mcp__firecrawl__firecrawl_scrape"
     ],
     "deny": [],
     "ask": []

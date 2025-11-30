@@ -39,6 +39,10 @@ export default function RecommendationsPage() {
   const [latestScanDate, setLatestScanDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+
   // Paper trading hook
   const { preparePaperTrade, executePaperTrade, tradePrep, isLoading: isPaperTrading } = usePaperTrade({
     accountEquity: 100000, // $100k paper account
@@ -133,6 +137,20 @@ export default function RecommendationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendationTypeFilter, confidenceFilter, minScore, sortBy, sortOrder]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [recommendationTypeFilter, confidenceFilter, minScore, symbolFilter, sortBy, sortOrder]);
+
+  // Calculate paginated results
+  const filteredRecommendations = symbolFilter
+    ? recommendations.filter(r => r.symbol === symbolFilter)
+    : recommendations;
+
+  const totalPages = Math.ceil(filteredRecommendations.length / ITEMS_PER_PAGE);
+  const paginatedRecommendations = filteredRecommendations.slice(0, currentPage * ITEMS_PER_PAGE);
+  const hasMore = currentPage < totalPages;
+
   // Handle paper trade button click
   const handlePaperTradeClick = async (recommendation: TradeRecommendation) => {
     const prep = await preparePaperTrade(recommendation);
@@ -191,6 +209,116 @@ export default function RecommendationsPage() {
           )}
         </Button>
       </div>
+
+      {/* Preset Filter Chips - Quick Access */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-blue-200 dark:border-blue-900">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Quick Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button
+            variant={minScore >= 75 && recommendationTypeFilter === 'all' && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setMinScore(75);
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setSymbolFilter(null);
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2"
+          >
+            <TrendingUp className="h-3 w-3" />
+            Best Today (75+)
+          </Button>
+          <Button
+            variant={recommendationTypeFilter === 'long' && minScore >= 60 && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setRecommendationTypeFilter('long');
+              setMinScore(60);
+              setConfidenceFilter('all');
+              setSymbolFilter(null);
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/20"
+          >
+            <TrendingUp className="h-3 w-3" />
+            Long Plays (60+)
+          </Button>
+          <Button
+            variant={recommendationTypeFilter === 'short' && minScore >= 60 && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setRecommendationTypeFilter('short');
+              setMinScore(60);
+              setConfidenceFilter('all');
+              setSymbolFilter(null);
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20"
+          >
+            <TrendingUp className="h-3 w-3 rotate-180" />
+            Short Plays (60+)
+          </Button>
+          <Button
+            variant={confidenceFilter === 'high' && recommendationTypeFilter === 'all' && minScore === 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setConfidenceFilter('high');
+              setRecommendationTypeFilter('all');
+              setMinScore(0);
+              setSymbolFilter(null);
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/20"
+          >
+            <Badge variant="outline" className="h-3 w-3 p-0 rounded-full bg-purple-600 border-0" />
+            High Confidence
+          </Button>
+          <Button
+            variant={sortBy === 'riskReward' && sortOrder === 'desc' && minScore === 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setSortBy('riskReward');
+              setSortOrder('desc');
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setMinScore(0);
+              setSymbolFilter(null);
+            }}
+            className="gap-2 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+          >
+            <Target className="h-3 w-3" />
+            Best R:R Ratio
+          </Button>
+          {/* Clear All Filters */}
+          {(recommendationTypeFilter !== 'all' || confidenceFilter !== 'all' || minScore > 0 || symbolFilter || sortBy !== 'score') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setRecommendationTypeFilter('all');
+                setConfidenceFilter('all');
+                setMinScore(0);
+                setSymbolFilter(null);
+                setSortBy('score');
+                setSortOrder('desc');
+              }}
+              className="gap-2 text-muted-foreground"
+            >
+              Clear All
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Error Display */}
       {error && (
@@ -475,6 +603,25 @@ export default function RecommendationsPage() {
         </Card>
       )}
 
+      {/* Results Count */}
+      {filteredRecommendations.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <p>
+            Showing {paginatedRecommendations.length} of {filteredRecommendations.length} recommendations
+          </p>
+          {currentPage > 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              className="text-xs"
+            >
+              Back to Top
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Results */}
       {recommendations.length === 0 && !loading && !error && (
         <Card>
@@ -493,11 +640,30 @@ export default function RecommendationsPage() {
         </Card>
       )}
 
+      {filteredRecommendations.length > 0 && paginatedRecommendations.length === 0 && (
+        <Card>
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            <Target className="mx-auto h-12 w-12 mb-4 opacity-50" />
+            <p className="text-lg font-medium">No results match your filters</p>
+            <p className="text-sm mt-1">Try adjusting your filters or clearing them to see all recommendations</p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRecommendationTypeFilter('all');
+                setConfidenceFilter('all');
+                setMinScore(0);
+                setSymbolFilter(null);
+              }}
+              className="mt-4"
+            >
+              Clear All Filters
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-4">
-        {(symbolFilter
-          ? recommendations.filter(r => r.symbol === symbolFilter)
-          : recommendations
-        ).map((recommendation) => (
+        {paginatedRecommendations.map((recommendation) => (
           <RecommendationCard
             key={recommendation.id}
             recommendation={recommendation}
@@ -505,6 +671,20 @@ export default function RecommendationsPage() {
           />
         ))}
       </div>
+
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="flex justify-center pt-4">
+          <Button
+            onClick={() => setCurrentPage(prev => prev + 1)}
+            variant="outline"
+            size="lg"
+            className="min-w-[200px]"
+          >
+            Load More ({filteredRecommendations.length - paginatedRecommendations.length} remaining)
+          </Button>
+        </div>
+      )}
 
       {/* Confirmation Dialog */}
       {pendingTrade && (
