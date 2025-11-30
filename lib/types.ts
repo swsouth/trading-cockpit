@@ -1,3 +1,54 @@
+// Paper Trading Types
+export type PaperTradeStatus = 'open' | 'closed' | 'cancelled';
+
+export type ExitReason = 'hit_target' | 'hit_stop' | 'manual_close' | 'expired' | 'cancelled';
+
+export interface PaperTrade {
+  id: string;
+  user_id: string;
+  recommendation_id: string | null;
+  symbol: string;
+  recommendation_type: 'long' | 'short';
+  setup_type: string | null;
+  candlestick_pattern: string | null;
+  entry_price: number;
+  stop_loss: number;
+  target_price: number;
+  exit_price: number | null;
+  shares: number;
+  cost_basis: number;
+  predicted_r_multiple: number;
+  realized_r_multiple: number | null;
+  dollar_risk: number;
+  realized_pnl: number | null;
+  alpaca_order_id: string | null;
+  alpaca_stop_order_id: string | null;
+  alpaca_target_order_id: string | null;
+  status: PaperTradeStatus;
+  exit_reason: ExitReason | null;
+  opened_at: string;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PerformanceMetrics {
+  user_id: string;
+  recommendation_type: 'long' | 'short' | null;
+  setup_type: string | null;
+  candlestick_pattern: string | null;
+  total_trades: number;
+  win_rate_percent: number;
+  avg_r_multiple: number;
+  avg_predicted_r_multiple: number;
+  total_pnl: number;
+  avg_pnl: number;
+  best_trade_pnl: number;
+  worst_trade_pnl: number;
+  best_r_multiple: number;
+  worst_r_multiple: number;
+}
+
 export type Candle = {
   timestamp: string;
   open: number;
