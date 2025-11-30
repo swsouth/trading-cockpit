@@ -32,6 +32,36 @@ const nextConfig = {
     '@radix-ui/react-toggle-group',
     '@radix-ui/react-tooltip',
   ],
+  webpack: (config, { isServer }) => {
+    // Add fallbacks for Node.js modules when building for browser
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
+        dns: false,
+        child_process: false,
+        'fs/promises': false,
+        'node:fs': false,
+        'node:fs/promises': false,
+        'node:os': false,
+        'node:path': false,
+        'node:crypto': false,
+        'node:stream': false,
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;

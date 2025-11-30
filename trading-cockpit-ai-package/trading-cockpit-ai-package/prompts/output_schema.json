@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "as_of_iso": {
+      "type": "string"
+    },
+    "strategy": {
+      "type": "string",
+      "enum": [
+        "Conservative",
+        "Swing",
+        "Aggressive"
+      ]
+    },
+    "top_recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "entry_range": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "target_range": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "price": {
+                  "type": "number"
+                },
+                "weight": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "price",
+                "weight"
+              ]
+            }
+          },
+          "stop": {
+            "type": "number"
+          },
+          "est_hold_time": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "risk_reward": {
+            "type": "number"
+          },
+          "position_size_fraction": {
+            "type": "number"
+          },
+          "invalidations": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "trail_stop_rule": {
+            "type": "string"
+          },
+          "recheck_interval_minutes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "symbol",
+          "stop",
+          "confidence",
+          "position_size_fraction"
+        ]
+      }
+    },
+    "watchlist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk_reminder": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "as_of_iso",
+    "strategy",
+    "top_recommendations",
+    "risk_reminder"
+  ]
+}

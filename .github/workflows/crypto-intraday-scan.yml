@@ -1,0 +1,44 @@
+name: Crypto Intraday Scanner (15-min)
+
+# Run every 15 minutes during crypto market hours (24/7)
+# Crypto markets never close, so we scan continuously
+on:
+  schedule:
+    # Every 15 minutes, 24/7
+    - cron: '0,15,30,45 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  scan-crypto-intraday:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run crypto intraday scanner
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run scan-crypto-intraday
+
+      - name: Report status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Crypto intraday scan completed successfully"
+          else
+            echo "❌ Crypto intraday scan failed"
+          fi

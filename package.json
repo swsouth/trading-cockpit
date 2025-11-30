@@ -18,7 +18,8 @@
     "clean-recommendations": "npx tsx scripts/cleanAllRecommendations.ts",
     "scan-intraday": "npx tsx scripts/intradayMarketScan.ts",
     "test-intraday": "npx tsx scripts/testIntradayScanner.ts",
-    "scan-crypto": "npx tsx scripts/cryptoIntradayScan.ts"
+    "scan-crypto": "npx tsx scripts/cryptoIntradayScan.ts",
+    "scan-crypto-intraday": "npx tsx scripts/crypto/intradayScanner.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

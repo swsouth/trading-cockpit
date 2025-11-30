@@ -7,15 +7,23 @@
  * Coverage: US stocks, ETFs
  * Update frequency: 15-20 min delay (acceptable for daily swing trading)
  * Cost: $0/month (vs Twelve Data free tier 800 calls/day limit)
+ *
+ * SERVER-SIDE ONLY: This module uses Node.js APIs and cannot run in browser
  */
 
-import YahooFinance from 'yahoo-finance2';
 import { Candle } from '@/lib/types';
 
-// Create Yahoo Finance instance with suppressed notices
-const yahooFinance = new YahooFinance({
-  suppressNotices: ['ripHistorical', 'yahooSurvey'], // Suppress deprecation notices
-});
+// Dynamic import for server-side only
+let YahooFinance: any;
+let yahooFinance: any;
+
+if (typeof window === 'undefined') {
+  YahooFinance = require('yahoo-finance2').default;
+  // Create Yahoo Finance instance with suppressed notices
+  yahooFinance = new YahooFinance({
+    suppressNotices: ['ripHistorical', 'yahooSurvey'], // Suppress deprecation notices
+  });
+}
 
 /**
  * Get historical OHLCV data for a stock symbol
@@ -47,7 +55,7 @@ export async function getYahooHistoricalData(
     }
 
     // Convert Yahoo Finance format to our Candle format
-    const candles: Candle[] = result.map(bar => ({
+    const candles: Candle[] = result.map((bar: any) => ({
       timestamp: bar.date.toISOString().split('T')[0], // YYYY-MM-DD
       open: parseFloat(bar.open.toFixed(2)),
       high: parseFloat(bar.high.toFixed(2)),

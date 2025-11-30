@@ -58,7 +58,10 @@
       "Bash(if exist apple-touch-icon.png.svg move apple-touch-icon.png.svg apple-touch-icon.svg)",
       "Bash(if exist .next rmdir /s /q .next)",
       "Bash(npm install:*)",
-      "mcp__firecrawl__firecrawl_scrape"
+      "mcp__firecrawl__firecrawl_scrape",
+      "Bash(dir:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm run scan-crypto-intraday:*)"
     ],
     "deny": [],
     "ask": []

@@ -334,4 +334,7 @@ export type TradeRecommendation = {
   expires_at: string | null;
   invalidated_at: string | null;
   invalidation_reason: string | null;
+
+  // Intraday/Day Trading (for crypto 15-min scans)
+  valid_until?: string | null; // ISO timestamp when opportunity expires (for intraday trades)
 };

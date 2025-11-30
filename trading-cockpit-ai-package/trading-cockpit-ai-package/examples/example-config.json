@@ -1,0 +1,10 @@
+{
+  "strategy": "Swing",
+  "riskLevel": 5,
+  "targetProfitPct": 6,
+  "stopMinPct": 2,
+  "stopMaxPct": 4,
+  "timeframeDays": 5,
+  "confidenceThreshold": 0.75,
+  "minRR": 1.3
+}
