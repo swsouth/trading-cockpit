@@ -45,8 +45,8 @@ The Alpaca MCP (Model Context Protocol) server provides AI-native access to:
 **File:** `.env.local`
 
 ```bash
-ALPACA_API_KEY=PKVKS273CZMT3CMG6F7WBWBGF4
-ALPACA_SECRET_KEY=6Jry7iXhDkVQW1D2JZdbixPYJR8ky2VrMeKcFSYKF6qK
+ALPACA_API_KEY=your_paper_api_key_here
+ALPACA_SECRET_KEY=your_paper_secret_key_here
 ALPACA_BASE_URL=https://paper-api.alpaca.markets/v2
 ```
 
