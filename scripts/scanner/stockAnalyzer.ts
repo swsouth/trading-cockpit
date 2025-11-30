@@ -10,6 +10,7 @@ import { detectPatterns } from '../../lib/analysis';
 import { generateTradeRecommendation } from '../../lib/tradeCalculator';
 import { calculateOpportunityScore, analyzeVolume } from '../../lib/scoring';
 import { detectAbsorption } from '../../lib/orderflow';
+import { vetRecommendation } from '../../lib/vetting';
 import { StockAnalysisResult } from './types';
 
 /**
@@ -72,11 +73,22 @@ export async function analyzeSingleStock(
       stopLoss: recommendation.stopLoss,
     });
 
+    // 6. Enhanced vetting (20-point checklist)
+    // This adds fundamental analysis, earnings proximity, analyst ratings, etc.
+    let vettingResult = null;
+    try {
+      vettingResult = await vetRecommendation(recommendation, recentCandles);
+      console.log(`   ${symbol}: Vetting score ${vettingResult.overallScore}/100 (${vettingResult.passed ? 'PASS' : 'FAIL'})`);
+    } catch (error) {
+      console.warn(`   ${symbol}: Vetting failed, skipping`, error);
+    }
+
     return {
       symbol,
       success: true,
       recommendation,
       score,
+      vetting: vettingResult, // Include vetting results
       candles: recentCandles, // Include candles for price data storage
     };
   } catch (error) {

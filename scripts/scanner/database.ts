@@ -63,7 +63,7 @@ function convertToRecord(
     return null;
   }
 
-  const { recommendation, score } = result;
+  const { recommendation, score, vetting } = result;
 
   // Calculate expires_at (7 days from scan date)
   const expiresAt = new Date(scanDate);
@@ -91,6 +91,13 @@ function convertToRecord(
     trend: null, // Can determine from setup type
     rationale: recommendation.rationale,
     expires_at: expiresAt.toISOString(),
+    // Enhanced vetting fields
+    vetting_score: vetting?.overallScore || null,
+    vetting_passed: vetting?.passed || null,
+    vetting_summary: vetting?.summary || null,
+    vetting_red_flags: vetting?.redFlags || null,
+    vetting_green_flags: vetting?.greenFlags || null,
+    vetting_checks: vetting?.checks || null,
   };
 }
 

@@ -7,6 +7,7 @@
 import { TradeRecommendation } from '../../lib/tradeCalculator';
 import { OpportunityScore } from '../../lib/scoring';
 import { Candle } from '../../lib/types';
+import { VettingResult } from '../../lib/vetting/types';
 
 /**
  * Single stock analysis result
@@ -17,6 +18,7 @@ export interface StockAnalysisResult {
   error?: string;
   recommendation?: TradeRecommendation;
   score?: OpportunityScore;
+  vetting?: VettingResult | null;  // Enhanced vetting results (20-point checklist)
   candles?: Candle[];  // Store the fetched price data for database storage
 }
 
@@ -71,4 +73,11 @@ export interface RecommendationRecord {
   trend: string | null;
   rationale: string;
   expires_at: string;
+  // Enhanced vetting fields
+  vetting_score: number | null;
+  vetting_passed: boolean | null;
+  vetting_summary: string | null;
+  vetting_red_flags: string[] | null;
+  vetting_green_flags: string[] | null;
+  vetting_checks: any | null;  // JSONB
 }
