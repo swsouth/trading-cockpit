@@ -21,22 +21,30 @@ export interface QuoteValidation {
 
 /**
  * Fetch live quote for a symbol
- * In production, this would call Alpaca MCP: mcp__alpaca__get_stock_latest_quote
- * For now, returns mock data with realistic variation
+ * Uses Alpaca REST API via our server-side proxy
  */
 export async function fetchLiveQuote(symbol: string): Promise<LiveQuote> {
   try {
-    // TODO: Implement Alpaca MCP call
-    // const result = await mcp__alpaca__get_stock_latest_quote({ symbol });
-    // return {
-    //   symbol,
-    //   price: (result.ask_price + result.bid_price) / 2,
-    //   timestamp: new Date(result.timestamp),
-    //   source: 'alpaca',
-    // };
+    // Call our server-side API route that proxies to Alpaca
+    const response = await fetch(`/api/quote?symbol=${symbol}`);
 
-    // Mock implementation for development
-    // Simulates realistic price movement since scanner ran
+    if (!response.ok) {
+      throw new Error(`Quote API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      symbol: data.symbol,
+      price: data.price,
+      timestamp: new Date(data.timestamp),
+      source: data.source,
+    };
+  } catch (error) {
+    console.error(`❌ Failed to fetch live quote for ${symbol}:`, error);
+
+    // Fallback to mock data if API fails
+    console.warn(`Using mock price for ${symbol}`);
     const mockPrice = getMockCurrentPrice(symbol);
 
     return {
@@ -45,9 +53,6 @@ export async function fetchLiveQuote(symbol: string): Promise<LiveQuote> {
       timestamp: new Date(),
       source: 'mock',
     };
-  } catch (error) {
-    console.error(`❌ Failed to fetch live quote for ${symbol}:`, error);
-    throw new Error(`Unable to fetch current price for ${symbol}`);
   }
 }
 
