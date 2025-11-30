@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import ChartModal from './ChartModal';
 import { getCompanyName } from '@/lib/stockNames';
+import { VettingBreakdown } from './VettingBreakdown';
 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
@@ -272,6 +273,18 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
             </div>
             <p className="text-blue-800 dark:text-blue-300">{rationale}</p>
           </div>
+        )}
+
+        {/* Enhanced Vetting Breakdown */}
+        {recommendation.vetting_score !== null && recommendation.vetting_score !== undefined && (
+          <VettingBreakdown
+            vettingScore={recommendation.vetting_score}
+            vettingPassed={recommendation.vetting_passed ?? false}
+            vettingSummary={recommendation.vetting_summary ?? 'No summary available'}
+            vettingRedFlags={recommendation.vetting_red_flags ?? []}
+            vettingGreenFlags={recommendation.vetting_green_flags ?? []}
+            vettingChecks={recommendation.vetting_checks}
+          />
         )}
 
         {/* Metadata */}

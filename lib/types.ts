@@ -317,6 +317,14 @@ export type TradeRecommendation = {
   rationale: string;
   technical_summary: string | null;
 
+  // Enhanced Vetting (20-point checklist)
+  vetting_score: number | null;
+  vetting_passed: boolean | null;
+  vetting_summary: string | null;
+  vetting_red_flags: string[] | null;
+  vetting_green_flags: string[] | null;
+  vetting_checks: any | null; // JSONB - full breakdown
+
   // Tracking & Lifecycle
   is_active: boolean;
   outcome: 'hit_target' | 'hit_stop' | 'expired' | 'pending' | 'invalidated' | null;
