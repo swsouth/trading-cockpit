@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { TradeRecommendation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,12 @@ import {
 import Link from 'next/link';
 import ChartModal from './ChartModal';
 import { getCompanyName } from '@/lib/stockNames';
-import { VettingBreakdown } from './VettingBreakdown';
+
+// Dynamic import VettingBreakdown to avoid SSR issues with Radix UI Progress
+const VettingBreakdown = dynamic(() => import('./VettingBreakdown').then(mod => ({ default: mod.VettingBreakdown })), {
+  ssr: false,
+  loading: () => <div className="text-sm text-muted-foreground">Loading vetting details...</div>,
+});
 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
