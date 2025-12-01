@@ -60,28 +60,79 @@ async function analyzeCrypto(symbol: string): Promise<CryptoAnalysisResult> {
 
     console.log(`📊 Analyzing ${symbol} (${candles.length} 15-min bars)...`);
 
-    // 1. Detect channels (support/resistance)
-    const channelResult = analysis.detectChannel(candles);
-
-    // 2. Detect candlestick patterns (last 5 bars for intraday)
-    const patternResult = analysis.detectPatterns(candles.slice(-5));
-
-    // 3. Calculate trade setup (entry/target/stop)
     const latestPrice = candles[candles.length - 1].close;
-    const tradeSetup = tradeCalculator.generateTradeRecommendation({
+
+    // ═══════════════════════════════════════════════════════════════════
+    // NEW IMPLEMENTATION: Use AnalysisEngine (Phase 1 Engine Integration)
+    // ═══════════════════════════════════════════════════════════════════
+    const { AnalysisEngine } = await import('../../lib/engine');
+
+    // Initialize engine with crypto intraday configuration
+    const engine = new AnalysisEngine({
+      assetType: 'crypto',
+      timeframe: 'intraday',
+    });
+
+    // Run analysis through unified 8-stage pipeline
+    const signal = await engine.analyzeAsset({
       symbol: symbol.split('/')[0], // BTC/USD → BTC
+      candles,
+      currentPrice: latestPrice,
+    });
+
+    // No signal = no actionable setup
+    if (!signal) {
+      return { symbol, success: false, error: 'No actionable intraday setup' };
+    }
+
+    // Build recommendation for database
+    const recommendation = {
+      symbol: symbol.split('/')[0], // BTC/USD → BTC
+      scan_date: new Date().toISOString(),
+      recommendation_type: signal.recommendation || 'none',
+      entry_price: signal.entry,
+      target_price: signal.target,
+      stop_loss: signal.stopLoss,
+      risk_reward_ratio: signal.riskReward,
+      opportunity_score: signal.score,
+      confidence_level: signal.confidence,
+      setup_type: `${signal.recommendation}_${signal.confidence}`,
+      pattern_detected: signal.mainPattern || 'none',
+      channel_status: signal.metadata.channelStatus || null,
+      trend: signal.regime === 'trending_bullish' ? 'up' : signal.regime === 'trending_bearish' ? 'down' : 'sideways',
+      current_price: latestPrice,
+      rationale: signal.rationale,
+      timeframe: '15min',
+      valid_until: getNext15MinBarClose(),
+      vetting_score: null,
+      vetting_passed: null,
+      vetting_summary: null,
+      vetting_red_flags: null,
+      vetting_green_flags: null,
+      vetting_checks: null,
+    };
+
+    console.log(`✅ ${symbol}: ${signal.recommendation}_${signal.confidence} (score: ${signal.score})`);
+    return { symbol, success: true, recommendation };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // OLD IMPLEMENTATION (preserved for validation)
+    // ═══════════════════════════════════════════════════════════════════
+    /*
+    const channelResult = analysis.detectChannel(candles);
+    const patternResult = analysis.detectPatterns(candles.slice(-5));
+    const tradeSetup = tradeCalculator.generateTradeRecommendation({
+      symbol: symbol.split('/')[0],
       candles,
       channel: channelResult,
       pattern: patternResult,
       currentPrice: latestPrice,
     });
 
-    // Skip if no actionable setup
     if (!tradeSetup) {
       return { symbol, success: false, error: 'No actionable intraday setup' };
     }
 
-    // 4. Calculate opportunity score (intraday version with volume analysis)
     const scoreResult = scoring.calculateIntradayOpportunityScore(
       candles,
       channelResult,
@@ -91,7 +142,6 @@ async function analyzeCrypto(symbol: string): Promise<CryptoAnalysisResult> {
       tradeSetup.stopLoss
     );
 
-    // Filter: Only score >= 50 for day trading (medium+ confidence)
     if (scoreResult.totalScore < 50) {
       return {
         symbol,
@@ -100,26 +150,25 @@ async function analyzeCrypto(symbol: string): Promise<CryptoAnalysisResult> {
       };
     }
 
-    // 5. Build recommendation for database
     const recommendation = {
-      symbol: symbol.split('/')[0], // BTC/USD → BTC
+      symbol: symbol.split('/')[0],
       scan_date: new Date().toISOString(),
-      recommendation_type: tradeSetup.setup.type, // 'long' or 'short'
+      recommendation_type: tradeSetup.setup.type,
       entry_price: tradeSetup.entry,
       target_price: tradeSetup.target,
       stop_loss: tradeSetup.stopLoss,
       risk_reward_ratio: tradeSetup.riskRewardRatio,
       opportunity_score: scoreResult.totalScore,
       confidence_level: scoreResult.totalScore >= 75 ? 'high' : scoreResult.totalScore >= 60 ? 'medium' : 'low',
-      setup_type: `${tradeSetup.setup.type}_${tradeSetup.setup.confidence}`, // e.g., "long_high"
+      setup_type: `${tradeSetup.setup.type}_${tradeSetup.setup.confidence}`,
       pattern_detected: patternResult.pattern || 'none',
       channel_status: channelResult.status,
       trend: channelResult.trend,
       current_price: latestPrice,
       rationale: tradeSetup.rationale,
-      timeframe: '15min', // IMPORTANT: Intraday timeframe
-      valid_until: getNext15MinBarClose(), // Expires when next bar closes
-      vetting_score: null, // Crypto doesn't use vetting (no earnings, analysts, etc.)
+      timeframe: '15min',
+      valid_until: getNext15MinBarClose(),
+      vetting_score: null,
       vetting_passed: null,
       vetting_summary: null,
       vetting_red_flags: null,
@@ -129,6 +178,7 @@ async function analyzeCrypto(symbol: string): Promise<CryptoAnalysisResult> {
 
     console.log(`✅ ${symbol}: ${tradeSetup.setup.type}_${tradeSetup.setup.confidence} (score: ${scoreResult.totalScore})`);
     return { symbol, success: true, recommendation };
+    */
 
   } catch (error) {
     console.error(`❌ Error analyzing ${symbol}:`, error);

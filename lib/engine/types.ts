@@ -16,6 +16,9 @@ export interface AnalysisConfig {
   assetType: 'stock' | 'crypto';
   timeframe: 'daily' | 'intraday';
 
+  // Minimum score threshold (signals below this are filtered out)
+  minScore: number;         // 0-100 (default: 60)
+
   // Channel detection parameters
   channel: {
     minTouches: number;      // Minimum support + resistance touches
@@ -58,6 +61,7 @@ export interface AnalysisInput {
   currentPrice: number;
   volume24h?: number;       // For crypto
   marketCap?: number;       // For stocks
+  weeklyCandles?: Candle[]; // Phase 2: Multi-timeframe analysis
 }
 
 // ============================================================================
@@ -73,7 +77,7 @@ export type PatternType =
   | 'doji'
   | 'piercing_line'
   | 'dark_cloud_cover'
-  // Chart patterns (Phase 2+)
+  // Chart patterns (Phase 2 - NOW IMPLEMENTED!)
   | 'double_bottom'
   | 'double_top'
   | 'bull_flag'
@@ -81,9 +85,10 @@ export type PatternType =
   | 'ascending_triangle'
   | 'descending_triangle'
   | 'symmetrical_triangle'
-  | 'head_shoulders'
-  | 'inverse_head_shoulders'
-  | 'cup_handle'
+  | 'head_and_shoulders'
+  | 'inverse_head_and_shoulders'
+  | 'cup_and_handle'
+  // Chart patterns (Phase 2+ - future)
   | 'rectangle'
   | 'wedge_rising'
   | 'wedge_falling'
@@ -191,6 +196,11 @@ export interface Signal {
     volumeConfirmation: boolean;
     weeklyTrend?: 'up' | 'down' | 'sideways';
     analysisVersion?: string; // Engine version for tracking
+    // Multi-timeframe analysis (Phase 2)
+    trendAlignment?: 'aligned' | 'divergent' | 'neutral';
+    weeklySupport?: number;
+    weeklyResistance?: number;
+    confluenceZones?: number; // Count of confluence zones
   };
 
   // Timestamps

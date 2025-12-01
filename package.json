@@ -20,7 +20,8 @@
     "test-intraday": "npx tsx scripts/testIntradayScanner.ts",
     "scan-crypto": "npx tsx scripts/cryptoIntradayScan.ts",
     "scan-crypto-intraday": "npx tsx scripts/crypto/intradayScanner.ts",
-    "test-crypto-universe": "npx tsx scripts/testCryptoUniverse.ts"
+    "test-crypto-universe": "npx tsx scripts/testCryptoUniverse.ts",
+    "test-chart-patterns": "npx tsx scripts/testChartPatterns.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

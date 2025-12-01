@@ -11,6 +11,9 @@ export const CRYPTO_CONFIG: AnalysisConfig = {
   assetType: 'crypto',
   timeframe: 'daily',
 
+  // Score threshold (40 for crypto due to higher volatility/noise)
+  minScore: 40,
+
   // Channel detection parameters (wider for crypto volatility)
   channel: {
     minTouches: 2,          // Same minimum touches
@@ -47,6 +50,7 @@ export const CRYPTO_CONFIG: AnalysisConfig = {
 export const CRYPTO_INTRADAY_CONFIG: AnalysisConfig = {
   ...CRYPTO_CONFIG,
   timeframe: 'intraday',
+  minScore: 50,  // Higher threshold for crypto intraday (very noisy)
 
   // Even tighter parameters for crypto intraday
   channel: {

@@ -39,10 +39,13 @@ import {
   MarketRegime,
 } from './types';
 import { loadConfig } from './config';
+import { detectEnhancedRegime, EnhancedRegime } from './regime/enhanced';
+import { analyzeMultipleTimeframes, MultiTimeframeAnalysis } from './multiTimeframe';
+import { adjustScoreForMTF } from './scoring/multiTimeframeScoring';
 
 export class AnalysisEngine {
   private config: AnalysisConfig;
-  private version: string = '1.0.0'; // Track engine version for analysis
+  private version: string = '2.0.0'; // Phase 2: Chart patterns + MTF + Enhanced regime
 
   constructor(options: EngineOptions) {
     this.config = loadConfig(options);
@@ -62,8 +65,18 @@ export class AnalysisEngine {
     // Stage 2: Calculate technical indicators
     const indicators = this.calculateIndicators(input.candles);
 
-    // Stage 3: Detect market regime (trending/ranging/transitional)
+    // Stage 3: Enhanced Regime Detection (Phase 2)
     const regime = this.detectRegime(input.candles, indicators);
+
+    // Stage 3.5: Multi-Timeframe Analysis (Phase 2) - Optional
+    let mtfAnalysis: MultiTimeframeAnalysis | null = null;
+    if (input.weeklyCandles && input.weeklyCandles.length >= 20) {
+      mtfAnalysis = analyzeMultipleTimeframes(
+        input.candles,
+        input.weeklyCandles,
+        input.currentPrice
+      );
+    }
 
     // Stage 4: Detect patterns (candlestick + chart patterns)
     const patterns = this.detectPatterns(input.candles, regime);
@@ -93,8 +106,8 @@ export class AnalysisEngine {
       return null;
     }
 
-    // Stage 7: Calculate opportunity score (0-100)
-    const score = this.calculateScore(
+    // Stage 7: Calculate base opportunity score (0-100)
+    let scoreResult = this.calculateScore(
       input.candles,
       indicators,
       patterns,
@@ -102,16 +115,28 @@ export class AnalysisEngine {
       regime
     );
 
-    // Stage 8: Determine confidence level (high/medium/low)
-    const confidence = this.determineConfidence(score.total, patterns, regime);
+    // Stage 7.5: Apply Multi-Timeframe Adjustments (Phase 2)
+    if (mtfAnalysis) {
+      const { adjustedScore, adjustmentReason } = adjustScoreForMTF(
+        scoreResult.total,
+        mtfAnalysis,
+        input.currentPrice
+      );
+      scoreResult = { ...scoreResult, total: adjustedScore };
 
-    // Filter out low confidence signals (< 60 score)
-    if (score.total < 60) {
+      console.log(`[AnalysisEngine] ${input.symbol} MTF adjustment: ${adjustedScore - scoreResult.total >= 0 ? '+' : ''}${adjustedScore - scoreResult.total} (${adjustmentReason})`);
+    }
+
+    // Stage 8: Determine confidence level (high/medium/low)
+    const confidence = this.determineConfidence(scoreResult.total, patterns, regime);
+
+    // Filter out low confidence signals using config threshold
+    if (scoreResult.total < this.config.minScore) {
       return null;
     }
 
     // Stage 9: Generate rationale
-    const rationale = this.generateRationale(patterns, regime, tradeSetup);
+    const rationale = this.generateRationale(patterns, regime, tradeSetup, mtfAnalysis);
 
     // Construct final Signal
     const signal: Signal = {
@@ -121,7 +146,7 @@ export class AnalysisEngine {
       stopLoss: tradeSetup.stopLoss,
       target: tradeSetup.target,
       riskReward: tradeSetup.riskReward,
-      score: score.total,
+      score: scoreResult.total,
       confidence,
       rationale,
       patterns: patterns.map(p => p.type),
@@ -130,8 +155,13 @@ export class AnalysisEngine {
       metadata: {
         channelStatus: this.determineChannelStatus(input.candles, input.currentPrice),
         volumeConfirmation: this.hasVolumeConfirmation(input.candles, indicators),
-        weeklyTrend: regime.weeklyTrend,
+        weeklyTrend: mtfAnalysis?.higherTimeframeTrend === 'bullish' ? 'up' : mtfAnalysis?.higherTimeframeTrend === 'bearish' ? 'down' : 'sideways',
         analysisVersion: this.version,
+        // Phase 2: Multi-Timeframe metadata
+        trendAlignment: mtfAnalysis?.trendAlignment,
+        weeklySupport: mtfAnalysis?.weeklySupport || undefined,
+        weeklyResistance: mtfAnalysis?.weeklyResistance || undefined,
+        confluenceZones: mtfAnalysis?.confluenceZones.length || 0,
       },
       analyzedAt: new Date(),
       expiresAt: this.config.timeframe === 'intraday'
@@ -188,48 +218,43 @@ export class AnalysisEngine {
   // ============================================================================
 
   private calculateIndicators(candles: AnalysisInput['candles']): Indicators {
-    // TODO: Migrate from lib/analysis.ts
-    // For now, return placeholder
+    const {
+      calculateEMA,
+      calculateRSI,
+      calculateADX,
+      calculateATR,
+      analyzeVolume,
+      analyzeIntradayVolume,
+    } = require('./patterns/indicators');
+
+    const isIntraday = this.config.timeframe === 'intraday';
+    const volumeAnalysis = isIntraday
+      ? analyzeIntradayVolume(candles)
+      : analyzeVolume(candles);
+
     return {
-      ema50: 0,
-      ema200: 0,
-      rsi: 50,
-      adx: 20,
-      atr: 0,
-      volume30DayAvg: 0,
-      volumeCurrent: candles[candles.length - 1]?.volume || 0,
+      ema50: calculateEMA(candles, 50),
+      ema200: calculateEMA(candles, 200),
+      rsi: calculateRSI(candles, 14),
+      adx: calculateADX(candles, 14),
+      atr: calculateATR(candles, 14),
+      volume30DayAvg: volumeAnalysis.last30DaysAvg,
+      volumeCurrent: volumeAnalysis.currentVolume,
     };
   }
 
   // ============================================================================
-  // STAGE 3: REGIME DETECTION
+  // STAGE 3: ENHANCED REGIME DETECTION (Phase 2)
   // ============================================================================
 
   private detectRegime(
     candles: AnalysisInput['candles'],
     indicators: Indicators
-  ): RegimeAnalysis {
-    // TODO: Implement regime detection
-    // For now, return placeholder
-    const adx = indicators.adx || 20;
-    const atr = indicators.atr || 0;
+  ): EnhancedRegime {
+    // Use enhanced regime detection with trend strength, volatility regime, market phase
+    const enhancedRegime = detectEnhancedRegime(candles);
 
-    let type: MarketRegime = 'transitional';
-    if (adx > 25) {
-      // Trending - determine direction from EMA slope or price action
-      type = 'trending_bullish'; // Placeholder
-    } else if (adx < 20) {
-      // Ranging - determine volatility from ATR
-      type = atr > 0 ? 'ranging_high_vol' : 'ranging_low_vol';
-    }
-
-    return {
-      type,
-      strength: adx / 100, // Normalize to 0-1
-      adx,
-      atr,
-      volatility: atr > 0 ? 'high' : 'low', // Placeholder logic
-    };
+    return enhancedRegime;
   }
 
   // ============================================================================
@@ -240,9 +265,25 @@ export class AnalysisEngine {
     candles: AnalysisInput['candles'],
     regime: RegimeAnalysis
   ): PatternResult[] {
-    // TODO: Migrate from lib/analysis.ts and add new patterns
-    // For now, return empty array
-    return [];
+    const { detectCandlestickPatterns } = require('./patterns/candlestick');
+    const { detectChartPatterns } = require('./patterns/chartPatterns');
+
+    // Detect candlestick patterns (single/double candle formations, regime-aware)
+    const candlestickPatterns = detectCandlestickPatterns(candles, regime);
+
+    // Detect chart patterns (multi-bar formations: flags, triangles, double tops/bottoms)
+    // Chart patterns require longer price history (20-50 bars) and provide powerful continuation/reversal signals
+    const chartPatterns = candles.length >= 20 ? detectChartPatterns(candles) : [];
+
+    // Combine both pattern types
+    // Chart patterns often have higher win rates (68-78%) vs candlestick patterns (55-67%)
+    // but require more bars to form
+    const allPatterns = [...candlestickPatterns, ...chartPatterns];
+
+    // Sort by confidence descending
+    allPatterns.sort((a, b) => b.confidence - a.confidence);
+
+    return allPatterns;
   }
 
   // ============================================================================
@@ -269,11 +310,145 @@ export class AnalysisEngine {
     patterns: PatternResult[],
     regime: RegimeAnalysis
   ): TradeSetup | null {
-    // TODO: Migrate from lib/tradeCalculator/
-    // Pattern-specific entry/stop/target logic
+    const { detectChannel } = require('./patterns/channel');
+    const { calculateATR } = require('./patterns/indicators');
 
-    // For now, return null (no setup)
-    return null;
+    // Detect channel for entry/stop/target calculation
+    const channel = detectChannel(candles, this.config);
+
+    // Determine trade direction based on patterns and regime
+    const direction = this.determineTradeDirection(patterns, regime, channel);
+    if (!direction) {
+      return null; // No clear direction
+    }
+
+    // Calculate ATR for dynamic stop placement
+    const atr = calculateATR(candles, 14);
+
+    // Calculate entry, stop, and target
+    let entry: number;
+    let stopLoss: number;
+    let target: number;
+
+    if (direction === 'long') {
+      // Long setup
+      if (channel.status === 'near_support' && channel.hasChannel) {
+        // Enter at support
+        entry = channel.support * 1.005; // Slightly above support
+      } else {
+        // Enter at current price
+        entry = currentPrice;
+      }
+
+      // Stop loss: Lesser of channel-based or ATR-based
+      const channelStop = channel.hasChannel ? channel.support * 0.98 : entry * 0.95;
+      const atrStop = entry - atr * 2.5;
+      stopLoss = Math.max(channelStop, atrStop);
+      stopLoss = Math.max(stopLoss, entry * 0.90); // Max 10% stop
+
+      // Target: Greater of channel-based or R:R-based
+      const risk = entry - stopLoss;
+      const rrTarget = entry + risk * 2.0; // Minimum 2:1 R:R
+      const channelTarget = channel.hasChannel ? channel.resistance * 0.98 : entry * 1.15;
+      target = Math.max(rrTarget, channelTarget);
+
+    } else {
+      // Short setup
+      if (channel.status === 'near_resistance' && channel.hasChannel) {
+        // Enter at resistance
+        entry = channel.resistance * 0.995; // Slightly below resistance
+      } else {
+        // Enter at current price
+        entry = currentPrice;
+      }
+
+      // Stop loss: Lesser of channel-based or ATR-based
+      const channelStop = channel.hasChannel ? channel.resistance * 1.02 : entry * 1.05;
+      const atrStop = entry + atr * 2.5;
+      stopLoss = Math.min(channelStop, atrStop);
+      stopLoss = Math.min(stopLoss, entry * 1.10); // Max 10% stop
+
+      // Target: Greater of channel-based or R:R-based
+      const risk = stopLoss - entry;
+      const rrTarget = entry - risk * 2.0; // Minimum 2:1 R:R
+      const channelTarget = channel.hasChannel ? channel.support * 1.02 : entry * 0.85;
+      target = Math.min(rrTarget, channelTarget);
+    }
+
+    // Validate setup
+    const riskReward = direction === 'long'
+      ? (target - entry) / (entry - stopLoss)
+      : (entry - target) / (stopLoss - entry);
+
+    if (riskReward < 1.5) {
+      return null; // R:R too low
+    }
+
+    const riskPct = direction === 'long'
+      ? ((entry - stopLoss) / entry) * 100
+      : ((stopLoss - entry) / entry) * 100;
+
+    if (riskPct > 10) {
+      return null; // Risk too high
+    }
+
+    return {
+      direction,
+      entry,
+      stopLoss,
+      target,
+      riskReward,
+      rationale: this.generateSetupRationale(patterns, regime, channel, direction),
+    };
+  }
+
+  private determineTradeDirection(
+    patterns: PatternResult[],
+    regime: RegimeAnalysis,
+    channel: any
+  ): 'long' | 'short' | null {
+    if (patterns.length === 0) {
+      return null;
+    }
+
+    const primaryPattern = patterns[0];
+    const patternDirection = primaryPattern.data.direction;
+
+    // If pattern is neutral (doji), use regime
+    if (patternDirection === 'neutral') {
+      if (regime.type === 'trending_bullish') return 'long';
+      if (regime.type === 'trending_bearish') return 'short';
+      return null;
+    }
+
+    // Use pattern direction
+    return patternDirection === 'bullish' ? 'long' : 'short';
+  }
+
+  private generateSetupRationale(
+    patterns: PatternResult[],
+    regime: RegimeAnalysis,
+    channel: any,
+    direction: 'long' | 'short'
+  ): string {
+    const parts: string[] = [];
+
+    // Pattern component
+    if (patterns.length > 0) {
+      const patternName = patterns[0].type.replace(/_/g, ' ');
+      parts.push(`${patternName} detected`);
+    }
+
+    // Channel component
+    if (channel.hasChannel) {
+      parts.push(`${channel.status.replace(/_/g, ' ')}`);
+    }
+
+    // Regime component
+    const regimeName = regime.type.replace(/_/g, ' ');
+    parts.push(`${regimeName} regime`);
+
+    return parts.join(', ');
   }
 
   // ============================================================================
@@ -287,36 +462,23 @@ export class AnalysisEngine {
     tradeSetup: TradeSetup,
     regime: RegimeAnalysis
   ): OpportunityScore {
-    // TODO: Migrate from lib/scoring/
-    // Apply config weights to score components
+    const { detectChannel } = require('./patterns/channel');
+    const { calculateOpportunityScore } = require('./scoring');
 
-    const weights = this.config.scoring;
+    // Detect channel for scoring
+    const channel = detectChannel(candles, this.config);
 
-    // Placeholder scores (out of 100)
-    const trendScore = 0;
-    const patternScore = 0;
-    const volumeScore = 0;
-    const riskRewardScore = 0;
-    const momentumScore = 0;
+    // Use the scoring module
+    const score = calculateOpportunityScore(
+      candles,
+      channel,
+      patterns,
+      tradeSetup,
+      indicators,
+      this.config
+    );
 
-    const total =
-      trendScore * weights.trendWeight * 100 +
-      patternScore * weights.patternWeight * 100 +
-      volumeScore * weights.volumeWeight * 100 +
-      riskRewardScore * weights.riskRewardWeight * 100 +
-      momentumScore * weights.momentumWeight * 100;
-
-    return {
-      total: Math.round(total),
-      components: {
-        trendScore,
-        patternScore,
-        volumeScore,
-        riskRewardScore,
-        momentumScore,
-      },
-      level: total >= 75 ? 'high' : total >= 60 ? 'medium' : 'low',
-    };
+    return score;
   }
 
   // ============================================================================
@@ -348,8 +510,9 @@ export class AnalysisEngine {
 
   private generateRationale(
     patterns: PatternResult[],
-    regime: RegimeAnalysis,
-    tradeSetup: TradeSetup
+    regime: EnhancedRegime,
+    tradeSetup: TradeSetup,
+    mtfAnalysis?: MultiTimeframeAnalysis | null
   ): string {
     const parts: string[] = [];
 
@@ -359,8 +522,16 @@ export class AnalysisEngine {
       parts.push(`Detected ${patternNames}`);
     }
 
-    // Regime component
-    parts.push(`Market regime: ${regime.type.replace(/_/g, ' ')}`);
+    // Regime component (enhanced with Phase 2 info)
+    const regimeName = regime.type.replace(/_/g, ' ');
+    const trendStrength = regime.trendStrengthClass;
+    parts.push(`${regimeName} (${trendStrength} trend, ${regime.volatilityRegime} vol)`);
+
+    // Multi-timeframe component (Phase 2)
+    if (mtfAnalysis && mtfAnalysis.trendAlignment !== 'neutral') {
+      const alignment = mtfAnalysis.trendAlignment === 'aligned' ? 'aligned with weekly' : 'divergent from weekly';
+      parts.push(`${alignment} trend`);
+    }
 
     // Trade setup component
     const rrRatio = tradeSetup.riskReward.toFixed(1);
@@ -377,8 +548,9 @@ export class AnalysisEngine {
     candles: AnalysisInput['candles'],
     currentPrice: number
   ): 'near_support' | 'near_resistance' | 'inside' | 'broken_out' | null {
-    // TODO: Implement channel status detection
-    return null;
+    const { detectChannel } = require('./patterns/channel');
+    const channel = detectChannel(candles, this.config);
+    return channel.hasChannel ? channel.status : null;
   }
 
   private hasVolumeConfirmation(

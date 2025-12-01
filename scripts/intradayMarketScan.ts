@@ -103,22 +103,68 @@ async function analyzeIntradayStock(
 
     const currentPrice = candles[candles.length - 1].close;
 
-    // Run channel detection (same logic as daily, just different timeframe)
-    const channelResult = detectChannel(candles, Math.min(40, candles.length));
+    // ═══════════════════════════════════════════════════════════════════
+    // NEW IMPLEMENTATION: Use AnalysisEngine (Phase 1 Engine Integration)
+    // ═══════════════════════════════════════════════════════════════════
+    const { AnalysisEngine } = await import('@/lib/engine');
 
-    // Detect patterns (reuse existing logic)
+    // Initialize engine with intraday stock configuration
+    const engine = new AnalysisEngine({
+      assetType: 'stock',
+      timeframe: 'intraday',
+    });
+
+    // Run analysis through unified 8-stage pipeline
+    const signal = await engine.analyzeAsset({
+      symbol,
+      candles,
+      currentPrice,
+    });
+
+    // No signal = no actionable setup
+    if (!signal) {
+      return null;
+    }
+
+    // Calculate expiration time (30 min from now)
+    const expiresAt = new Date(Date.now() + config.expirationMinutes * 60 * 1000);
+
+    // Convert Signal to IntradayOpportunity format
+    // Skip if no recommendation (Signal.recommendation is 'long' | 'short' | null)
+    if (!signal.recommendation) {
+      return null;
+    }
+
+    return {
+      symbol,
+      timeframe: config.timeframe,
+      recommendation_type: signal.recommendation,
+      entry_price: signal.entry,
+      target_price: signal.target,
+      stop_loss: signal.stopLoss,
+      opportunity_score: signal.score,
+      confidence_level: signal.confidence,
+      rationale: signal.rationale,
+      current_price: currentPrice,
+      expires_at: expiresAt.toISOString(),
+      scan_timestamp: new Date().toISOString(),
+      channel_status: signal.metadata.channelStatus || null,
+      pattern_detected: signal.mainPattern || null,
+      rsi: null, // RSI not currently exposed in Signal metadata
+    };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // OLD IMPLEMENTATION (preserved for validation)
+    // ═══════════════════════════════════════════════════════════════════
+    /*
+    const channelResult = detectChannel(candles, Math.min(40, candles.length));
     const { detectPatterns } = await import('@/lib/analysis');
     const patternResult = detectPatterns(candles);
-
-    // Analyze volume and absorption (for high confidence determination)
     const { analyzeVolume } = await import('@/lib/scoring');
     const { detectAbsorption } = await import('@/lib/orderflow');
     const volume = analyzeVolume(candles);
     const absorption = detectAbsorption(candles, volume);
 
-    console.log(`   Channel: ${channelResult.hasChannel ? 'YES' : 'NO'}, Pattern: ${patternResult.mainPattern}`);
-
-    // Generate trade recommendation (with volume and absorption for Phase 1 fixes)
     const recommendation = generateTradeRecommendation({
       symbol,
       candles,
@@ -129,16 +175,10 @@ async function analyzeIntradayStock(
       absorption,
     });
 
-    if (!recommendation) {
-      return null; // No valid setup
-    }
-
-    // Type guard: Only 'long' or 'short' setups are actionable
-    if (recommendation.setup.type === 'none') {
+    if (!recommendation || recommendation.setup.type === 'none') {
       return null;
     }
 
-    // Calculate opportunity score with intraday-specific volume normalization
     const score = calculateIntradayOpportunityScore(
       candles,
       channelResult,
@@ -148,13 +188,7 @@ async function analyzeIntradayStock(
       recommendation.stopLoss
     );
 
-    // Show ALL opportunities - let user filter by score in UI
-    // (minScore check removed to match daily scanner behavior)
-
-    // Calculate expiration time (30 min from now)
     const expiresAt = new Date(Date.now() + config.expirationMinutes * 60 * 1000);
-
-    // Build rationale
     const rationale = buildIntradayRationale(recommendation, channelResult, score);
 
     return {
@@ -174,6 +208,7 @@ async function analyzeIntradayStock(
       pattern_detected: patternResult.mainPattern || null,
       rsi: score.components.momentumScore || null,
     };
+    */
 
   } catch (error) {
     console.error(`   ❌ ${symbol}: Error analyzing -`, error instanceof Error ? error.message : error);

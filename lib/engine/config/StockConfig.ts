@@ -11,6 +11,9 @@ export const STOCK_CONFIG: AnalysisConfig = {
   assetType: 'stock',
   timeframe: 'daily',
 
+  // Score threshold (30 allows more setups, UI highlights <50 as risky)
+  minScore: 30,
+
   // Channel detection parameters
   channel: {
     minTouches: 2,          // Minimum 2 support + 2 resistance touches
@@ -47,6 +50,7 @@ export const STOCK_CONFIG: AnalysisConfig = {
 export const STOCK_INTRADAY_CONFIG: AnalysisConfig = {
   ...STOCK_CONFIG,
   timeframe: 'intraday',
+  minScore: 40,  // Higher threshold for intraday (more noise)
 
   // Tighter parameters for intraday
   channel: {

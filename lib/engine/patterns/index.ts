@@ -11,6 +11,12 @@ export {
   type CandlestickPattern,
 } from './candlestick';
 
+// Chart patterns (multi-bar)
+export {
+  detectChartPatterns,
+  type ChartPattern,
+} from './chartPatterns';
+
 // Channel detection
 export {
   detectChannel,

@@ -50,11 +50,16 @@ async function runTest() {
     console.log(`  R:R:     1:${recommendation.riskRewardRatio.toFixed(2)}`);
 
     console.log(`\nScoring Breakdown:`);
-    console.log(`  Trend Strength:  ${score.components.trendStrength}/30`);
-    console.log(`  Pattern Quality: ${score.components.patternQuality}/25`);
-    console.log(`  Volume:          ${score.components.volumeScore}/20`);
-    console.log(`  Risk/Reward:     ${score.components.riskRewardScore}/15`);
-    console.log(`  Momentum:        ${score.components.momentumScore}/10`);
+    // Handle both legacy and new score formats
+    if (score.breakdown) {
+      console.log(`  Trend:           ${score.breakdown.trend}/30`);
+      console.log(`  Pattern:         ${score.breakdown.pattern}/25`);
+      console.log(`  Volume:          ${score.breakdown.volume}/20`);
+      console.log(`  Risk/Reward:     ${score.breakdown.riskReward}/15`);
+      console.log(`  Momentum:        ${score.breakdown.momentum}/10`);
+    } else {
+      console.log(`  (Score component breakdown not available)`);
+    }
 
     console.log(`\nRationale:`);
     console.log(`  ${recommendation.rationale}`);
