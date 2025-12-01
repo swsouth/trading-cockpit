@@ -1,10 +1,16 @@
 /**
- * Crypto Intraday Scanner
+ * Crypto Intraday Scanner - ENHANCED with Dynamic Universe
  *
- * Scans cryptocurrencies for intraday trade opportunities using 5-min bars
- * Runs every 5 minutes, 24/7 (crypto markets never close)
+ * Features:
+ * - 100 cryptos across 4 tiers (vs original 5 coins)
+ * - Daily CMC universe refresh (identifies hot coins)
+ * - Volume-based tier promotion (catches breakouts)
+ * - Tiered scanning (5/10/15/30 min intervals)
+ * - Hot coin priority boost
  *
- * POC: BTC only (288 scans/day = 288 API calls/day from Twelve Data quota)
+ * API Usage:
+ * - CoinMarketCap: 1 call/day (universe refresh)
+ * - Twelve Data: ~8,000 calls/month (intraday scanning)
  */
 
 // Load environment variables
@@ -18,6 +24,18 @@ import { calculateIntradayOpportunityScore } from '@/lib/scoring';
 import { generateTradeRecommendation } from '@/lib/tradeCalculator';
 import { Candle } from '@/lib/types';
 import { createClient } from '@supabase/supabase-js';
+import { buildDynamicUniverse, getScanPriority } from '@/lib/coinmarketcap';
+import {
+  getAllCryptoSymbols,
+  getSymbolsByTier,
+  getTierForSymbol,
+  getScanInterval,
+  printUniverseSummary,
+  TIER_1_MAJORS,
+  TIER_2_LARGE_CAPS,
+  TIER_3_MID_CAPS,
+  TIER_4_EMERGING,
+} from './cryptoUniverseTiered';
 
 /**
  * Crypto intraday scanner configuration
@@ -270,15 +288,35 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
 }
 
 /**
+ * Determine which coins to scan based on time and tier
+ */
+function getCoinsToScan(tier: 1 | 2 | 3 | 4, currentMinute: number): string[] {
+  const interval = {
+    1: 5,   // Every 5 minutes
+    2: 10,  // Every 10 minutes
+    3: 15,  // Every 15 minutes
+    4: 30,  // Every 30 minutes
+  }[tier];
+
+  // Only scan if current minute is divisible by interval
+  if (currentMinute % interval === 0) {
+    return getSymbolsByTier(tier);
+  }
+
+  return [];
+}
+
+/**
  * Main crypto scanner function
  * Returns the count of opportunities found
  */
-export async function runCryptoScan(): Promise<number> {
-  console.log('🔍 CRYPTO INTRADAY SCANNER');
+export async function runCryptoScan(useDynamicUniverse: boolean = false): Promise<number> {
+  console.log('🔍 CRYPTO INTRADAY SCANNER - ENHANCED');
   console.log('═'.repeat(50));
   console.log(`Started: ${new Date().toLocaleString()}`);
   console.log(`Timeframe: ${DEFAULT_CONFIG.timeframe}`);
   console.log(`Lookback: ${DEFAULT_CONFIG.lookbackBars} bars`);
+  console.log(`Dynamic Universe: ${useDynamicUniverse ? 'ENABLED (CMC)' : 'STATIC (Tiered)'}`);
   console.log('');
 
   // Check market status (always open for crypto)
@@ -287,20 +325,76 @@ export async function runCryptoScan(): Promise<number> {
   console.log(`   ${marketStatus.message}`);
   console.log('');
 
-  // Top cryptocurrencies by market cap and trading volume
-  const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+  // Get universe (dynamic from CMC or static tiered)
+  let cryptoSymbols: string[] = [];
+  let hotCoins: string[] = [];
 
-  console.log(`🎯 Scanning ${CRYPTO_SYMBOLS.length} cryptocurrencies...`);
+  if (useDynamicUniverse) {
+    console.log('🌍 Fetching dynamic universe from CoinMarketCap...');
+    const universe = await buildDynamicUniverse();
+    hotCoins = universe.hotCoins;
+
+    // Combine all tiers
+    cryptoSymbols = [
+      ...universe.tier1,
+      ...universe.tier2,
+      ...universe.tier3,
+      ...universe.tier4,
+    ];
+
+    console.log(`   ✅ Loaded ${cryptoSymbols.length} coins from CMC`);
+    if (hotCoins.length > 0) {
+      console.log(`   🔥 Hot coins: ${hotCoins.slice(0, 5).join(', ')}...`);
+    }
+  } else {
+    // Use static tiered universe
+    printUniverseSummary();
+
+    // Determine which tiers to scan based on current time
+    const now = new Date();
+    const currentMinute = now.getMinutes();
+
+    console.log(`\n⏰ Current minute: ${currentMinute}`);
+    console.log('   Determining which tiers to scan...\n');
+
+    const tier1Coins = getCoinsToScan(1, currentMinute);
+    const tier2Coins = getCoinsToScan(2, currentMinute);
+    const tier3Coins = getCoinsToScan(3, currentMinute);
+    const tier4Coins = getCoinsToScan(4, currentMinute);
+
+    cryptoSymbols = [...tier1Coins, ...tier2Coins, ...tier3Coins, ...tier4Coins];
+
+    if (tier1Coins.length > 0) console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 5 min)`);
+    if (tier2Coins.length > 0) console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 10 min)`);
+    if (tier3Coins.length > 0) console.log(`   ✓ Tier 3: ${tier3Coins.length} coins (every 15 min)`);
+    if (tier4Coins.length > 0) console.log(`   ✓ Tier 4: ${tier4Coins.length} coins (every 30 min)`);
+  }
+
+  if (cryptoSymbols.length === 0) {
+    console.log('⚠️  No coins scheduled for this minute - skipping scan');
+    return 0;
+  }
+
+  console.log(`\n🎯 Scanning ${cryptoSymbols.length} cryptocurrencies...`);
   console.log('');
 
   const opportunities: CryptoOpportunity[] = [];
 
-  for (const symbol of CRYPTO_SYMBOLS) {
-    console.log(`Analyzing ${symbol}...`);
+  for (const symbol of cryptoSymbols) {
+    const tier = getTierForSymbol(symbol);
+    const priority = getScanPriority(symbol, hotCoins, tier || 4);
+    const hotFlag = hotCoins.includes(symbol) ? ' 🔥' : '';
+
+    console.log(`Analyzing ${symbol}${hotFlag} (Tier ${tier}, Priority ${priority})...`);
 
     const opportunity = await analyzeCrypto(symbol, DEFAULT_CONFIG);
 
     if (opportunity) {
+      // Add tier and priority metadata
+      (opportunity as any).tier = tier;
+      (opportunity as any).priority = priority;
+      (opportunity as any).isHot = hotCoins.includes(symbol);
+
       opportunities.push(opportunity);
     }
 
@@ -311,8 +405,13 @@ export async function runCryptoScan(): Promise<number> {
   console.log('═'.repeat(50));
   console.log('📊 SCAN SUMMARY');
   console.log('═'.repeat(50));
-  console.log(`Total scanned: ${CRYPTO_SYMBOLS.length}`);
+  console.log(`Total scanned: ${cryptoSymbols.length}`);
   console.log(`Opportunities found: ${opportunities.length}`);
+
+  if (hotCoins.length > 0) {
+    const hotOpportunities = opportunities.filter(opp => (opp as any).isHot);
+    console.log(`Hot coin opportunities: ${hotOpportunities.length}`);
+  }
 
   if (opportunities.length > 0) {
     console.log('');
