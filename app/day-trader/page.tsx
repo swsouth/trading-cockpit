@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin, Play } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -76,8 +77,46 @@ export default function DayTraderPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
+  // Filtering & Sorting
+  const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
+  const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [minScore, setMinScore] = useState(0);
+  const [sortBy, setSortBy] = useState<'score' | 'timeToExpire' | 'symbol' | 'confidence'>('score');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+
+  // Apply filters and sorting to opportunities
+  const filterAndSortOpportunities = (opps: IntradayOpportunity[]) => {
+    // Filter
+    let filtered = opps.filter(opp => {
+      if (recommendationTypeFilter !== 'all' && opp.recommendation_type !== recommendationTypeFilter) return false;
+      if (confidenceFilter !== 'all' && opp.confidence_level !== confidenceFilter) return false;
+      if (opp.opportunity_score < minScore) return false;
+      return true;
+    });
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'score') {
+        comparison = a.opportunity_score - b.opportunity_score;
+      } else if (sortBy === 'timeToExpire') {
+        const aExpiry = new Date(a.expires_at).getTime();
+        const bExpiry = new Date(b.expires_at).getTime();
+        comparison = aExpiry - bExpiry;
+      } else if (sortBy === 'symbol') {
+        comparison = a.symbol.localeCompare(b.symbol);
+      } else if (sortBy === 'confidence') {
+        const confidenceOrder = { high: 3, medium: 2, low: 1 };
+        comparison = confidenceOrder[a.confidence_level] - confidenceOrder[b.confidence_level];
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return filtered;
+  };
 
   // Calculate which crypto tiers will scan at current minute
   const getCryptoTierInfo = () => {
@@ -107,13 +146,17 @@ export default function DayTraderPage() {
 
   const cryptoTierInfo = getCryptoTierInfo();
 
-  // Filter opportunities by asset type
-  const stockOpportunities = opportunities.filter(opp =>
+  // Filter opportunities by asset type (raw data)
+  const rawStockOpportunities = opportunities.filter(opp =>
     !opp.asset_type || opp.asset_type === 'stock'
   );
-  const cryptoOpportunities = opportunities.filter(opp =>
+  const rawCryptoOpportunities = opportunities.filter(opp =>
     opp.asset_type === 'crypto'
   );
+
+  // Apply filtering and sorting
+  const stockOpportunities = filterAndSortOpportunities(rawStockOpportunities);
+  const cryptoOpportunities = filterAndSortOpportunities(rawCryptoOpportunities);
 
   // Check if scanner should be disabled due to rate limits
   const isStockScannerDisabled = () => {
@@ -602,6 +645,220 @@ export default function DayTraderPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Quick Filters */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-blue-200 dark:border-blue-900">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Quick Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button
+            variant={minScore >= 75 && recommendationTypeFilter === 'all' && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setMinScore(75);
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2"
+          >
+            <TrendingUp className="h-3 w-3" />
+            Best Today (75+)
+          </Button>
+          <Button
+            variant={recommendationTypeFilter === 'long' && minScore >= 60 && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setRecommendationTypeFilter('long');
+              setMinScore(60);
+              setConfidenceFilter('all');
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/20"
+          >
+            <TrendingUp className="h-3 w-3" />
+            Long Plays (60+)
+          </Button>
+          <Button
+            variant={recommendationTypeFilter === 'short' && minScore >= 60 && confidenceFilter === 'all' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setRecommendationTypeFilter('short');
+              setMinScore(60);
+              setConfidenceFilter('all');
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20"
+          >
+            <TrendingUp className="h-3 w-3 rotate-180" />
+            Short Plays (60+)
+          </Button>
+          <Button
+            variant={confidenceFilter === 'high' && recommendationTypeFilter === 'all' && minScore === 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setConfidenceFilter('high');
+              setRecommendationTypeFilter('all');
+              setMinScore(0);
+              setSortBy('score');
+              setSortOrder('desc');
+            }}
+            className="gap-2 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/20"
+          >
+            <Badge variant="outline" className="h-3 w-3 p-0 rounded-full bg-purple-600 border-0" />
+            High Confidence
+          </Button>
+          <Button
+            variant={sortBy === 'timeToExpire' && sortOrder === 'asc' ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setSortBy('timeToExpire');
+              setSortOrder('asc');
+              setRecommendationTypeFilter('all');
+              setConfidenceFilter('all');
+              setMinScore(0);
+            }}
+            className="gap-2 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+          >
+            <Clock className="h-3 w-3" />
+            Expiring Soon
+          </Button>
+          {/* Clear All Filters */}
+          {(recommendationTypeFilter !== 'all' || confidenceFilter !== 'all' || minScore > 0 || sortBy !== 'score') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setRecommendationTypeFilter('all');
+                setConfidenceFilter('all');
+                setMinScore(0);
+                setSortBy('score');
+                setSortOrder('desc');
+              }}
+              className="gap-2 text-muted-foreground"
+            >
+              Clear All
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Filters & Sorting Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Filters & Sorting</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Sorting Controls */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Sort By</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                value={sortBy}
+                onValueChange={(value) => setSortBy(value as 'score' | 'timeToExpire' | 'symbol' | 'confidence')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="score">Opportunity Score</SelectItem>
+                  <SelectItem value="timeToExpire">Time Until Expire</SelectItem>
+                  <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
+                  <SelectItem value="confidence">Confidence Level</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={sortOrder}
+                onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">
+                    {sortBy === 'timeToExpire' ? 'Expiring Last' : 'Highest First'}
+                  </SelectItem>
+                  <SelectItem value="asc">
+                    {sortBy === 'timeToExpire' ? 'Expiring Soon' : 'Lowest First'}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Filter Controls */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Filters</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Type Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <Select
+                  value={recommendationTypeFilter}
+                  onValueChange={(value) => setRecommendationTypeFilter(value as 'all' | 'long' | 'short')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="long">Long Only</SelectItem>
+                    <SelectItem value="short">Short Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Confidence Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Confidence</label>
+                <Select
+                  value={confidenceFilter}
+                  onValueChange={(value) => setConfidenceFilter(value as 'all' | 'high' | 'medium' | 'low')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Confidence</SelectItem>
+                    <SelectItem value="high">High Only</SelectItem>
+                    <SelectItem value="medium">Medium Only</SelectItem>
+                    <SelectItem value="low">Low Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Min Score Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Min Score</label>
+                <Select
+                  value={minScore.toString()}
+                  onValueChange={(value) => setMinScore(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Any Score</SelectItem>
+                    <SelectItem value="30">30+ (All)</SelectItem>
+                    <SelectItem value="40">40+ (Fair)</SelectItem>
+                    <SelectItem value="50">50+ (Good)</SelectItem>
+                    <SelectItem value="60">60+ (Medium+)</SelectItem>
+                    <SelectItem value="75">75+ (High)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Opportunities Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'stocks' | 'crypto')}>
