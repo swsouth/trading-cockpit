@@ -79,6 +79,34 @@ export default function DayTraderPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
+  // Calculate which crypto tiers will scan at current minute
+  const getCryptoTierInfo = () => {
+    const minute = currentTime.getMinutes();
+    const tiers = [];
+    let totalCoins = 0;
+
+    if (minute % 5 === 0) {
+      tiers.push({ tier: 1, count: 10, label: 'Majors' });
+      totalCoins += 10;
+    }
+    if (minute % 10 === 0) {
+      tiers.push({ tier: 2, count: 20, label: 'Large Caps' });
+      totalCoins += 20;
+    }
+    if (minute % 15 === 0) {
+      tiers.push({ tier: 3, count: 30, label: 'Mid Caps' });
+      totalCoins += 30;
+    }
+    if (minute % 30 === 0) {
+      tiers.push({ tier: 4, count: 40, label: 'Emerging' });
+      totalCoins += 40;
+    }
+
+    return { tiers, totalCoins, minute };
+  };
+
+  const cryptoTierInfo = getCryptoTierInfo();
+
   // Filter opportunities by asset type
   const stockOpportunities = opportunities.filter(opp =>
     !opp.asset_type || opp.asset_type === 'stock'
@@ -377,7 +405,14 @@ export default function DayTraderPage() {
               ) : (
                 <Play className="mr-2 h-4 w-4" />
               )}
-              {scannerRunning ? 'Scanning...' : `Run ${activeTab === 'stocks' ? 'Stock' : 'Crypto'} Scanner`}
+              {scannerRunning
+                ? 'Scanning...'
+                : activeTab === 'stocks'
+                  ? 'Run Stock Scanner'
+                  : cryptoTierInfo.totalCoins > 0
+                    ? `Scan ${cryptoTierInfo.totalCoins} Cryptos`
+                    : 'No Scan This Minute'
+              }
             </Button>
             {isScannerDisabled && !scannerRunning && (
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
@@ -398,7 +433,7 @@ export default function DayTraderPage() {
       </div>
 
       {/* Market Status & API Usage Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Market Status Card */}
         {marketStatus && (
           <Card>
@@ -513,6 +548,47 @@ export default function DayTraderPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Crypto Scan Schedule Card */}
+        {activeTab === 'crypto' && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Bitcoin className={`h-5 w-5 ${
+                      cryptoTierInfo.totalCoins > 0 ? 'text-green-500' : 'text-gray-400'
+                    }`} />
+                    <div>
+                      <p className="font-semibold">Scan Schedule</p>
+                      <p className="text-sm text-muted-foreground">
+                        Minute :{cryptoTierInfo.minute.toString().padStart(2, '0')}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className={cryptoTierInfo.totalCoins > 0 ? 'bg-green-500' : 'bg-gray-400'}>
+                    {cryptoTierInfo.totalCoins > 0 ? `${cryptoTierInfo.totalCoins} COINS` : 'IDLE'}
+                  </Badge>
+                </div>
+                {cryptoTierInfo.tiers.length > 0 && (
+                  <div className="space-y-1">
+                    {cryptoTierInfo.tiers.map((t) => (
+                      <div key={t.tier} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Tier {t.tier} ({t.label})</span>
+                        <Badge variant="outline" className="text-xs">{t.count} coins</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {cryptoTierInfo.totalCoins === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Next scan at :{((Math.floor(cryptoTierInfo.minute / 5) + 1) * 5).toString().padStart(2, '0')}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Error Display */}
