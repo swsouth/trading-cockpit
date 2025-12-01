@@ -280,16 +280,46 @@ export async function runCryptoScan(): Promise<number> {
   console.log(`   ${marketStatus.message}`);
   console.log('');
 
-  // Top cryptocurrencies by market cap and trading volume
-  const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP'];
+  // Import tiered universe
+  const {
+    getAllCryptoSymbols,
+    getSymbolsByTier,
+    getTierForSymbol,
+    getScanInterval,
+  } = await import('@/scripts/cryptoUniverseTiered');
 
-  console.log(`🎯 Scanning ${CRYPTO_SYMBOLS.length} cryptocurrencies...`);
+  // Determine which coins to scan based on current minute (tiered approach)
+  const now = new Date();
+  const currentMinute = now.getMinutes();
+
+  console.log(`⏰ Current minute: ${currentMinute}`);
+  console.log('   Determining which tiers to scan...\n');
+
+  const tier1Coins = currentMinute % 5 === 0 ? getSymbolsByTier(1) : [];
+  const tier2Coins = currentMinute % 10 === 0 ? getSymbolsByTier(2) : [];
+  const tier3Coins = currentMinute % 15 === 0 ? getSymbolsByTier(3) : [];
+  const tier4Coins = currentMinute % 30 === 0 ? getSymbolsByTier(4) : [];
+
+  const cryptoSymbols = [...tier1Coins, ...tier2Coins, ...tier3Coins, ...tier4Coins];
+
+  if (tier1Coins.length > 0) console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 5 min)`);
+  if (tier2Coins.length > 0) console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 10 min)`);
+  if (tier3Coins.length > 0) console.log(`   ✓ Tier 3: ${tier3Coins.length} coins (every 15 min)`);
+  if (tier4Coins.length > 0) console.log(`   ✓ Tier 4: ${tier4Coins.length} coins (every 30 min)`);
+
+  if (cryptoSymbols.length === 0) {
+    console.log('⚠️  No coins scheduled for this minute - skipping scan');
+    return 0;
+  }
+
+  console.log(`\n🎯 Scanning ${cryptoSymbols.length} cryptocurrencies...`);
   console.log('');
 
   const opportunities: CryptoOpportunity[] = [];
 
-  for (const symbol of CRYPTO_SYMBOLS) {
-    console.log(`Analyzing ${symbol}...`);
+  for (const symbol of cryptoSymbols) {
+    const tier = getTierForSymbol(symbol);
+    console.log(`Analyzing ${symbol} (Tier ${tier})...`);
 
     const opportunity = await analyzeCrypto(symbol, DEFAULT_CONFIG);
 
@@ -304,7 +334,7 @@ export async function runCryptoScan(): Promise<number> {
   console.log('═'.repeat(50));
   console.log('📊 SCAN SUMMARY');
   console.log('═'.repeat(50));
-  console.log(`Total scanned: ${CRYPTO_SYMBOLS.length}`);
+  console.log(`Total scanned: ${cryptoSymbols.length}`);
   console.log(`Opportunities found: ${opportunities.length}`);
 
   if (opportunities.length > 0) {
