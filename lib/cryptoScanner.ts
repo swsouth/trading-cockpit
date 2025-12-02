@@ -289,26 +289,110 @@ export async function runCryptoScan(): Promise<number> {
   } = await import('@/scripts/cryptoUniverseTiered');
 
   // Determine which coins to scan based on current minute (tiered approach)
+  // UPDATED: Allow one scan per period (e.g., can scan at :53 if haven't scanned for :50 period)
   const now = new Date();
   const currentMinute = now.getMinutes();
 
   console.log(`⏰ Current minute: ${currentMinute}`);
-  console.log('   Determining which tiers to scan...\n');
+  console.log('   Determining which tiers are eligible for scanning...\n');
 
-  const tier1Coins = currentMinute % 5 === 0 ? getSymbolsByTier(1) : [];
-  const tier2Coins = currentMinute % 10 === 0 ? getSymbolsByTier(2) : [];
-  const tier3Coins = currentMinute % 15 === 0 ? getSymbolsByTier(3) : [];
-  const tier4Coins = currentMinute % 30 === 0 ? getSymbolsByTier(4) : [];
+  // Helper function to check if we can scan a tier
+  // Returns true if we're in the tier's period AND haven't scanned this period yet
+  async function canScanTier(tier: number, intervalMinutes: number): Promise<boolean> {
+    // Calculate which period we're in (e.g., for 5-min intervals: 0-4, 5-9, 10-14, etc.)
+    const currentPeriod = Math.floor(currentMinute / intervalMinutes);
+
+    // Get last scan time from database for this tier
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn(`   ⚠️  Tier ${tier}: Supabase config missing - allowing scan`);
+      return true; // Default to allowing scan if no DB access
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if we've scanned this tier in the current period
+    const periodStartTime = new Date(now);
+    periodStartTime.setMinutes(currentPeriod * intervalMinutes, 0, 0);
+
+    const { data, error } = await supabase
+      .from('crypto_scan_history')
+      .select('scan_timestamp, tier')
+      .eq('tier', tier)
+      .gte('scan_timestamp', periodStartTime.toISOString())
+      .order('scan_timestamp', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.warn(`   ⚠️  Tier ${tier}: Error checking scan history - allowing scan`, error.message);
+      return true; // Default to allowing scan on error
+    }
+
+    const hasScannedThisPeriod = data && data.length > 0;
+
+    if (hasScannedThisPeriod) {
+      const lastScan = new Date(data[0].scan_timestamp);
+      const minutesAgo = Math.floor((now.getTime() - lastScan.getTime()) / 60000);
+      console.log(`   ⏸️  Tier ${tier}: Already scanned this period (${minutesAgo}m ago) - skipping`);
+      return false;
+    }
+
+    console.log(`   ✅ Tier ${tier}: Eligible for scan (period ${currentPeriod})`);
+    return true;
+  }
+
+  // Record scan in history for this tier
+  async function recordScan(tier: number): Promise<void> {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) return;
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    await supabase.from('crypto_scan_history').insert({
+      tier,
+      scan_timestamp: now.toISOString(),
+    });
+  }
+
+  // Check each tier asynchronously
+  const [canTier1, canTier2, canTier3, canTier4] = await Promise.all([
+    canScanTier(1, 5),   // Tier 1: every 5 minutes
+    canScanTier(2, 10),  // Tier 2: every 10 minutes
+    canScanTier(3, 15),  // Tier 3: every 15 minutes
+    canScanTier(4, 30),  // Tier 4: every 30 minutes
+  ]);
+
+  const tier1Coins = canTier1 ? getSymbolsByTier(1) : [];
+  const tier2Coins = canTier2 ? getSymbolsByTier(2) : [];
+  const tier3Coins = canTier3 ? getSymbolsByTier(3) : [];
+  const tier4Coins = canTier4 ? getSymbolsByTier(4) : [];
 
   const cryptoSymbols = [...tier1Coins, ...tier2Coins, ...tier3Coins, ...tier4Coins];
 
-  if (tier1Coins.length > 0) console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 5 min)`);
-  if (tier2Coins.length > 0) console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 10 min)`);
-  if (tier3Coins.length > 0) console.log(`   ✓ Tier 3: ${tier3Coins.length} coins (every 15 min)`);
-  if (tier4Coins.length > 0) console.log(`   ✓ Tier 4: ${tier4Coins.length} coins (every 30 min)`);
+  if (tier1Coins.length > 0) {
+    console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 5 min)`);
+    await recordScan(1);
+  }
+  if (tier2Coins.length > 0) {
+    console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 10 min)`);
+    await recordScan(2);
+  }
+  if (tier3Coins.length > 0) {
+    console.log(`   ✓ Tier 3: ${tier3Coins.length} coins (every 15 min)`);
+    await recordScan(3);
+  }
+  if (tier4Coins.length > 0) {
+    console.log(`   ✓ Tier 4: ${tier4Coins.length} coins (every 30 min)`);
+    await recordScan(4);
+  }
 
   if (cryptoSymbols.length === 0) {
-    console.log('⚠️  No coins scheduled for this minute - skipping scan');
+    console.log('⚠️  No tiers eligible for scanning at this time');
+    console.log('   (All tiers already scanned in their current period)');
     return 0;
   }
 
