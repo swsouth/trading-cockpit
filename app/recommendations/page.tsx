@@ -57,10 +57,11 @@ export default function RecommendationsPage() {
   const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [minScore, setMinScore] = useState<number>(0);
+  const [minVettingScore, setMinVettingScore] = useState<number>(0);
   const [symbolFilter, setSymbolFilter] = useState<string | null>(null);
 
   // Sorting
-  const [sortBy, setSortBy] = useState<'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward'>('score');
+  const [sortBy, setSortBy] = useState<'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward' | 'vettingScore'>('score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const fetchRecommendations = async () => {
@@ -83,6 +84,7 @@ export default function RecommendationsPage() {
       if (recommendationTypeFilter !== 'all') params.append('recommendationType', recommendationTypeFilter);
       if (confidenceFilter !== 'all') params.append('confidenceLevel', confidenceFilter);
       if (minScore > 0) params.append('minScore', minScore.toString());
+      if (minVettingScore > 0) params.append('minVettingScore', minVettingScore.toString());
       params.append('activeOnly', 'true');
       params.append('limit', '1000'); // Get all results (was 30, now unlimited)
       params.append('sortBy', sortBy);
@@ -135,12 +137,12 @@ export default function RecommendationsPage() {
   useEffect(() => {
     fetchRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recommendationTypeFilter, confidenceFilter, minScore, sortBy, sortOrder]);
+  }, [recommendationTypeFilter, confidenceFilter, minScore, minVettingScore, sortBy, sortOrder]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [recommendationTypeFilter, confidenceFilter, minScore, symbolFilter, sortBy, sortOrder]);
+  }, [recommendationTypeFilter, confidenceFilter, minScore, minVettingScore, symbolFilter, sortBy, sortOrder]);
 
   // Calculate paginated results
   const filteredRecommendations = symbolFilter
@@ -224,6 +226,7 @@ export default function RecommendationsPage() {
             size="sm"
             onClick={() => {
               setMinScore(75);
+              setMinVettingScore(0);
               setRecommendationTypeFilter('all');
               setConfidenceFilter('all');
               setSymbolFilter(null);
@@ -241,6 +244,7 @@ export default function RecommendationsPage() {
             onClick={() => {
               setRecommendationTypeFilter('long');
               setMinScore(60);
+              setMinVettingScore(0);
               setConfidenceFilter('all');
               setSymbolFilter(null);
               setSortBy('score');
@@ -257,6 +261,7 @@ export default function RecommendationsPage() {
             onClick={() => {
               setRecommendationTypeFilter('short');
               setMinScore(60);
+              setMinVettingScore(0);
               setConfidenceFilter('all');
               setSymbolFilter(null);
               setSortBy('score');
@@ -274,6 +279,7 @@ export default function RecommendationsPage() {
               setConfidenceFilter('high');
               setRecommendationTypeFilter('all');
               setMinScore(0);
+              setMinVettingScore(0);
               setSymbolFilter(null);
               setSortBy('score');
               setSortOrder('desc');
@@ -292,6 +298,7 @@ export default function RecommendationsPage() {
               setRecommendationTypeFilter('all');
               setConfidenceFilter('all');
               setMinScore(0);
+              setMinVettingScore(0);
               setSymbolFilter(null);
             }}
             className="gap-2 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/20"
@@ -300,7 +307,7 @@ export default function RecommendationsPage() {
             Best R:R Ratio
           </Button>
           {/* Clear All Filters */}
-          {(recommendationTypeFilter !== 'all' || confidenceFilter !== 'all' || minScore > 0 || symbolFilter || sortBy !== 'score') && (
+          {(recommendationTypeFilter !== 'all' || confidenceFilter !== 'all' || minScore > 0 || minVettingScore > 0 || symbolFilter || sortBy !== 'score') && (
             <Button
               variant="ghost"
               size="sm"
@@ -308,6 +315,7 @@ export default function RecommendationsPage() {
                 setRecommendationTypeFilter('all');
                 setConfidenceFilter('all');
                 setMinScore(0);
+                setMinVettingScore(0);
                 setSymbolFilter(null);
                 setSortBy('score');
                 setSortOrder('desc');
@@ -368,6 +376,7 @@ export default function RecommendationsPage() {
               setRecommendationTypeFilter('all');
               setConfidenceFilter('all');
               setMinScore(0);
+              setMinVettingScore(0);
               setSymbolFilter(null);
             }}
             style={{
@@ -421,6 +430,7 @@ export default function RecommendationsPage() {
               setRecommendationTypeFilter('all');
               setConfidenceFilter('all');
               setMinScore(0);
+              setMinVettingScore(0);
               setSymbolFilter(null);
             }}
             style={{
@@ -484,13 +494,14 @@ export default function RecommendationsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 value={sortBy}
-                onValueChange={(value) => setSortBy(value as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward')}
+                onValueChange={(value) => setSortBy(value as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward' | 'vettingScore')}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="score">Opportunity Score</SelectItem>
+                  <SelectItem value="vettingScore">Vetting Score</SelectItem>
                   <SelectItem value="riskReward">Risk:Reward Ratio</SelectItem>
                   <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
                   <SelectItem value="confidence">Confidence Level</SelectItem>
@@ -516,7 +527,7 @@ export default function RecommendationsPage() {
           {/* Filter Controls */}
           <div>
             <label className="text-sm font-medium mb-2 block">Filters</label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Type Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Type</label>
@@ -554,9 +565,9 @@ export default function RecommendationsPage() {
               </Select>
             </div>
 
-            {/* Min Score Filter */}
+            {/* Min Opportunity Score Filter */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Min Score</label>
+              <label className="text-sm font-medium">Min Opp Score</label>
               <Select
                 value={minScore.toString()}
                 onValueChange={(value) => setMinScore(parseInt(value))}
@@ -571,6 +582,26 @@ export default function RecommendationsPage() {
                   <SelectItem value="50">50+ (Good)</SelectItem>
                   <SelectItem value="60">60+ (Medium+)</SelectItem>
                   <SelectItem value="75">75+ (High)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Min Vetting Score Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Min Vetting Score</label>
+              <Select
+                value={minVettingScore.toString()}
+                onValueChange={(value) => setMinVettingScore(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Any Score</SelectItem>
+                  <SelectItem value="50">50+ (Pass)</SelectItem>
+                  <SelectItem value="60">60+ (Good)</SelectItem>
+                  <SelectItem value="70">70+ (Very Good)</SelectItem>
+                  <SelectItem value="80">80+ (Excellent)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -652,6 +683,7 @@ export default function RecommendationsPage() {
                 setRecommendationTypeFilter('all');
                 setConfidenceFilter('all');
                 setMinScore(0);
+                setMinVettingScore(0);
                 setSymbolFilter(null);
               }}
               className="mt-4"

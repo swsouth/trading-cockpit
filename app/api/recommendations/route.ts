@@ -59,14 +59,16 @@ export async function GET(request: NextRequest) {
     const recommendationType = searchParams.get('recommendationType') as 'long' | 'short' | null;
     const confidenceLevel = searchParams.get('confidenceLevel') as 'low' | 'medium' | 'high' | null;
     const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : 0;
+    const minVettingScore = searchParams.get('minVettingScore') ? parseInt(searchParams.get('minVettingScore')!) : 0;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 30;
     const activeOnly = searchParams.get('activeOnly') !== 'false'; // default true
-    const sortBy = searchParams.get('sortBy') as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward' || 'score';
+    const sortBy = searchParams.get('sortBy') as 'score' | 'symbol' | 'confidence' | 'setup' | 'riskReward' | 'vettingScore' || 'score';
     const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' || 'desc';
 
     // Map sort options to database columns
     const sortColumnMap = {
       score: 'opportunity_score',
+      vettingScore: 'vetting_score',
       symbol: 'symbol',
       confidence: 'confidence_level',
       setup: 'setup_type',
@@ -98,6 +100,10 @@ export async function GET(request: NextRequest) {
 
     if (minScore > 0) {
       query = query.gte('opportunity_score', minScore);
+    }
+
+    if (minVettingScore > 0) {
+      query = query.gte('vetting_score', minVettingScore);
     }
 
     query = query.limit(limit);

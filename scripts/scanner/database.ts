@@ -102,6 +102,21 @@ function convertToRecord(
 }
 
 /**
+ * Deactivate old recommendations (make only today's scan active)
+ */
+export async function deactivateOldRecommendations(currentScanDate: string): Promise<void> {
+  const { error } = await supabase
+    .from('trade_recommendations')
+    .update({ is_active: false })
+    .neq('scan_date', currentScanDate)
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('Error deactivating old recommendations:', error.message);
+  }
+}
+
+/**
  * Store recommendations in database
  */
 export async function storeRecommendations(
@@ -117,6 +132,9 @@ export async function storeRecommendations(
     console.log('No recommendations to store');
     return 0;
   }
+
+  // FIRST: Deactivate all old recommendations (only today's scan should be active)
+  await deactivateOldRecommendations(scanDate);
 
   // Insert in batches of 100
   const batchSize = 100;
