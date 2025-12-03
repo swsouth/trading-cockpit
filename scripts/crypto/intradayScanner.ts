@@ -10,7 +10,7 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { getCrypto15MinCandles, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
+import { batchGetCrypto15MinData, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
 import * as analysis from '../../lib/analysis';
 import * as scoring from '../../lib/scoring';
 import * as tradeCalculator from '../../lib/tradeCalculator';
@@ -43,13 +43,10 @@ interface CryptoAnalysisResult {
 }
 
 /**
- * Analyze single crypto with 15-min bars
+ * Analyze single crypto with 15-min bars (using pre-fetched candles)
  */
-async function analyzeCrypto(symbol: string): Promise<CryptoAnalysisResult> {
+async function analyzeCrypto(symbol: string, candles: Candle[]): Promise<CryptoAnalysisResult> {
   try {
-    // Fetch last 24 hours of 15-min candles (96 bars)
-    const candles = await getCrypto15MinCandles(symbol, 24);
-
     if (!candles || candles.length < 20) {
       return {
         symbol,
@@ -207,43 +204,38 @@ export async function runIntradayCryptoScan() {
   let successCount = 0;
   let errorCount = 0;
 
-  // Process in batches to respect Twelve Data rate limit (8 calls/min)
-  const BATCH_SIZE = 8;
-  const BATCH_DELAY_MS = 60000; // 60 seconds between batches
+  // ═══════════════════════════════════════════════════════════════════
+  // FETCH ALL CANDLE DATA FIRST (with rate limiting built-in)
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`\n🔄 Fetching 15-min candles for ${CRYPTO_UNIVERSE.length} cryptos (rate-limited)...`);
+  const candleDataMap = await batchGetCrypto15MinData(CRYPTO_UNIVERSE, 24);
+  console.log(`✅ Fetched candles for ${candleDataMap.size}/${CRYPTO_UNIVERSE.length} cryptos\n`);
 
-  for (let i = 0; i < CRYPTO_UNIVERSE.length; i += BATCH_SIZE) {
-    const batch = CRYPTO_UNIVERSE.slice(i, i + BATCH_SIZE);
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(CRYPTO_UNIVERSE.length / BATCH_SIZE);
+  // ═══════════════════════════════════════════════════════════════════
+  // ANALYZE ALL CRYPTOS (no API calls, just computation)
+  // ═══════════════════════════════════════════════════════════════════
+  for (const symbol of CRYPTO_UNIVERSE) {
+    const candles = candleDataMap.get(symbol);
 
-    console.log(`\n📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} cryptos)...`);
+    if (!candles) {
+      errorCount++;
+      console.log(`⚠️  ${symbol}: No candle data available`);
+      continue;
+    }
 
-    // Process current batch in parallel
-    const batchResults = await Promise.allSettled(
-      batch.map(symbol => analyzeCrypto(symbol))
-    );
+    try {
+      const result = await analyzeCrypto(symbol, candles);
 
-    // Collect results from this batch
-    batchResults.forEach((result, idx) => {
-      if (result.status === 'fulfilled') {
-        const analysis = result.value;
-        if (analysis.success && analysis.recommendation) {
-          recommendations.push(analysis.recommendation);
-          successCount++;
-        } else {
-          errorCount++;
-          console.log(`⚠️  ${analysis.symbol}: ${analysis.error}`);
-        }
+      if (result.success && result.recommendation) {
+        recommendations.push(result.recommendation);
+        successCount++;
       } else {
         errorCount++;
-        console.error(`❌ ${batch[idx]}: Promise rejected:`, result.reason);
+        console.log(`⚠️  ${result.symbol}: ${result.error}`);
       }
-    });
-
-    // Wait before next batch (unless this is the last batch)
-    if (i + BATCH_SIZE < CRYPTO_UNIVERSE.length) {
-      console.log(`⏳ Waiting 60 seconds before next batch to respect rate limits...`);
-      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+    } catch (error) {
+      errorCount++;
+      console.error(`❌ ${symbol}: Analysis failed:`, error);
     }
   }
 
