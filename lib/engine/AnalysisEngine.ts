@@ -42,6 +42,7 @@ import { loadConfig } from './config';
 import { detectEnhancedRegime, EnhancedRegime } from './regime/enhanced';
 import { analyzeMultipleTimeframes, MultiTimeframeAnalysis } from './multiTimeframe';
 import { adjustScoreForMTF } from './scoring/multiTimeframeScoring';
+import { classifySetupTier, getTierConfig, TierClassification, SetupTier } from './tierClassifier';
 
 export class AnalysisEngine {
   private config: AnalysisConfig;
@@ -162,6 +163,11 @@ export class AnalysisEngine {
         weeklySupport: mtfAnalysis?.weeklySupport || undefined,
         weeklyResistance: mtfAnalysis?.weeklyResistance || undefined,
         confluenceZones: mtfAnalysis?.confluenceZones.length || 0,
+        // Phase 8: Tier classification metadata
+        setupTier: tradeSetup.setupTier,
+        expectedHoldMinutes: tradeSetup.expectedHoldMinutes,
+        tierScore: tradeSetup.tierScore,
+        tierRationale: tradeSetup.tierRationale,
       },
       analyzedAt: new Date(),
       expiresAt: this.config.timeframe === 'intraday'
@@ -311,7 +317,7 @@ export class AnalysisEngine {
     regime: RegimeAnalysis
   ): TradeSetup | null {
     const { detectChannel } = require('./patterns/channel');
-    const { calculateATR } = require('./patterns/indicators');
+    const { calculateATR, calculateRSI } = require('./patterns/indicators');
 
     // Detect channel for entry/stop/target calculation
     const channel = detectChannel(candles, this.config);
@@ -324,6 +330,40 @@ export class AnalysisEngine {
 
     // Calculate ATR for dynamic stop placement
     const atr = calculateATR(candles, 14);
+    const avgATR = this.calculateAvgATR(candles);
+    const rsi = calculateRSI(candles, 14);
+
+    // Calculate current volume
+    const currentVolume = candles[candles.length - 1]?.volume || 0;
+    const avgVolume = this.calculateAvgVolume(candles);
+
+    // Calculate gap percent
+    const gapPercent = candles.length >= 2
+      ? ((candles[candles.length - 1].open - candles[candles.length - 2].close) / candles[candles.length - 2].close) * 100
+      : 0;
+
+    // Classify setup tier based on market conditions
+    const mainPattern = patterns[0]?.type || null;
+    const tierClassification = classifySetupTier(
+      {
+        volume: currentVolume,
+        avgVolume: avgVolume,
+        pattern: mainPattern,
+        channelStatus: channel.hasChannel ? channel.status : null,
+        rsi: rsi,
+        atr: atr,
+        avgATR: avgATR,
+        gapPercent: gapPercent,
+        candles: candles,
+        hasChannel: channel.hasChannel,
+      },
+      direction
+    );
+
+    // Get tier configuration
+    const tierConfig = getTierConfig(tierClassification.tier);
+
+    console.log(`[TIER] ${tierClassification.tier} - ${tierClassification.rationale} (Score: ${tierClassification.score})`);
 
     // Calculate entry, stop, and target
     let entry: number;
@@ -346,11 +386,33 @@ export class AnalysisEngine {
       stopLoss = Math.max(channelStop, atrStop);
       stopLoss = Math.max(stopLoss, entry * 0.90); // Max 10% stop
 
-      // Target: Greater of channel-based or R:R-based
+      // CRITICAL FIX: Validate stop is not too tight
+      const stopDistance = entry - stopLoss;
+      const riskPct = (stopDistance / entry) * 100;
+      const minStopPct = entry < 10 ? 1.0 : entry > 200 ? 0.3 : 0.5; // Price-based minimum
+      const minStopDist = Math.max(entry * (minStopPct / 100), atr * 0.5); // At least 0.5× ATR
+
+      if (stopDistance < minStopDist) {
+        console.log(`[LONG REJECTED] Stop too tight: ${riskPct.toFixed(2)}% risk (min ${minStopPct}%), distance $${stopDistance.toFixed(2)} (min $${minStopDist.toFixed(2)})`);
+        return null;
+      }
+
+      // TIER-BASED TARGET CALCULATION
+      // Use tier configuration for target percentage
+      const tierTargetPrice = entry * (1 + tierConfig.targetPercent / 100);
+
+      // Also calculate channel-based target if available
+      const channelTarget = channel.hasChannel
+        ? channel.resistance * 0.98
+        : tierTargetPrice;
+
+      // Pick the more conservative target (Math.min)
       const risk = entry - stopLoss;
-      const rrTarget = entry + risk * 2.0; // Minimum 2:1 R:R
-      const channelTarget = channel.hasChannel ? channel.resistance * 0.98 : entry * 1.15;
-      target = Math.max(rrTarget, channelTarget);
+      const rrTarget = entry + risk * tierConfig.riskRewardRatio; // Use tier R:R
+
+      target = Math.min(tierTargetPrice, channelTarget, rrTarget);
+
+      console.log(`[TARGET] Tier: $${tierTargetPrice.toFixed(2)}, Channel: $${channelTarget.toFixed(2)}, R:R: $${rrTarget.toFixed(2)} → Selected: $${target.toFixed(2)}`);
 
     } else {
       // Short setup
@@ -368,11 +430,33 @@ export class AnalysisEngine {
       stopLoss = Math.min(channelStop, atrStop);
       stopLoss = Math.min(stopLoss, entry * 1.10); // Max 10% stop
 
-      // Target: Greater of channel-based or R:R-based
+      // CRITICAL FIX: Validate stop is not too tight
+      const stopDistance = stopLoss - entry;
+      const riskPct = (stopDistance / entry) * 100;
+      const minStopPct = entry < 10 ? 1.0 : entry > 200 ? 0.3 : 0.5;
+      const minStopDist = Math.max(entry * (minStopPct / 100), atr * 0.5);
+
+      if (stopDistance < minStopDist) {
+        console.log(`[SHORT REJECTED] Stop too tight: ${riskPct.toFixed(2)}% risk (min ${minStopPct}%), distance $${stopDistance.toFixed(2)} (min $${minStopDist.toFixed(2)})`);
+        return null;
+      }
+
+      // TIER-BASED TARGET CALCULATION
+      // Use tier configuration for target percentage
+      const tierTargetPrice = entry * (1 - tierConfig.targetPercent / 100);
+
+      // Also calculate channel-based target if available
+      const channelTarget = channel.hasChannel
+        ? channel.support * 1.02
+        : tierTargetPrice;
+
+      // Pick the more conservative target (Math.max for shorts - lower price better)
       const risk = stopLoss - entry;
-      const rrTarget = entry - risk * 2.0; // Minimum 2:1 R:R
-      const channelTarget = channel.hasChannel ? channel.support * 1.02 : entry * 0.85;
-      target = Math.min(rrTarget, channelTarget);
+      const rrTarget = entry - risk * tierConfig.riskRewardRatio; // Use tier R:R
+
+      target = Math.max(tierTargetPrice, channelTarget, rrTarget);
+
+      console.log(`[TARGET SHORT] Tier: $${tierTargetPrice.toFixed(2)}, Channel: $${channelTarget.toFixed(2)}, R:R: $${rrTarget.toFixed(2)} → Selected: $${target.toFixed(2)}`);
     }
 
     // Validate setup
@@ -381,6 +465,7 @@ export class AnalysisEngine {
       : (entry - target) / (stopLoss - entry);
 
     if (riskReward < 1.5) {
+      console.log(`[SETUP REJECTED] R:R ${riskReward.toFixed(2)} below minimum 1.5`);
       return null; // R:R too low
     }
 
@@ -399,6 +484,10 @@ export class AnalysisEngine {
       target,
       riskReward,
       rationale: this.generateSetupRationale(patterns, regime, channel, direction),
+      setupTier: tierClassification.tier,
+      expectedHoldMinutes: tierConfig.holdMinutes,
+      tierScore: tierClassification.score,
+      tierRationale: tierClassification.rationale,
     };
   }
 
@@ -423,6 +512,44 @@ export class AnalysisEngine {
 
     // Use pattern direction
     return patternDirection === 'bullish' ? 'long' : 'short';
+  }
+
+  /**
+   * Calculate average ATR over last 20 periods
+   */
+  private calculateAvgATR(candles: AnalysisInput['candles']): number {
+    const { calculateATR } = require('./patterns/indicators');
+
+    if (candles.length < 20) {
+      return calculateATR(candles, 14);
+    }
+
+    // Calculate ATR for each 14-period window over last 20 periods
+    let sum = 0;
+    const periods = 5; // Calculate 5 ATR values over the range
+
+    for (let i = 0; i < periods; i++) {
+      const offset = i * 3; // Step by 3 to get 5 samples
+      if (candles.length - offset >= 14) {
+        const subset = candles.slice(0, candles.length - offset);
+        sum += calculateATR(subset, 14);
+      }
+    }
+
+    return sum / periods;
+  }
+
+  /**
+   * Calculate average volume over last 30 periods
+   */
+  private calculateAvgVolume(candles: AnalysisInput['candles']): number {
+    if (candles.length === 0) return 0;
+
+    const lookback = Math.min(30, candles.length);
+    const recentCandles = candles.slice(-lookback);
+    const totalVolume = recentCandles.reduce((sum, c) => sum + (c.volume || 0), 0);
+
+    return totalVolume / lookback;
   }
 
   private generateSetupRationale(

@@ -143,6 +143,10 @@ export interface TradeSetup {
   target: number;
   riskReward: number;
   rationale: string;
+  setupTier?: 'SCALP' | 'STANDARD' | 'MOMENTUM';
+  expectedHoldMinutes?: number;
+  tierScore?: number;
+  tierRationale?: string;
 }
 
 // ============================================================================
@@ -201,6 +205,11 @@ export interface Signal {
     weeklySupport?: number;
     weeklyResistance?: number;
     confluenceZones?: number; // Count of confluence zones
+    // Tier classification (Phase 8)
+    setupTier?: 'SCALP' | 'STANDARD' | 'MOMENTUM';
+    expectedHoldMinutes?: number;
+    tierScore?: number;
+    tierRationale?: string;
   };
 
   // Timestamps

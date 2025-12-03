@@ -83,6 +83,12 @@ interface IntradayOpportunity {
   channel_status: string | null;
   pattern_detected: string | null;
   rsi: number | null;
+
+  // Tier classification (NEW - Phase 8)
+  setup_tier?: 'SCALP' | 'STANDARD' | 'MOMENTUM';
+  expected_hold_minutes?: number;
+  tier_score?: number;
+  tier_rationale?: string;
 }
 
 /**
@@ -151,6 +157,11 @@ async function analyzeIntradayStock(
       channel_status: signal.metadata.channelStatus || null,
       pattern_detected: signal.mainPattern || null,
       rsi: null, // RSI not currently exposed in Signal metadata
+      // Phase 8: Tier classification
+      setup_tier: signal.metadata.setupTier,
+      expected_hold_minutes: signal.metadata.expectedHoldMinutes,
+      tier_score: signal.metadata.tierScore,
+      tier_rationale: signal.metadata.tierRationale,
     };
 
     // ═══════════════════════════════════════════════════════════════════
@@ -330,6 +341,11 @@ async function storeIntradayOpportunities(
     pattern_detected: opp.pattern_detected,
     rsi: opp.rsi,
     status: 'active',
+    // Phase 8: Tier classification
+    setup_tier: opp.setup_tier,
+    expected_hold_minutes: opp.expected_hold_minutes,
+    tier_score: opp.tier_score,
+    tier_rationale: opp.tier_rationale,
   }));
 
   console.log(`   📝 Inserting ${records.length} records into database...`);
