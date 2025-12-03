@@ -4,7 +4,7 @@
  * Allows authenticated users to manually trigger crypto intraday scanner
  * Crypto markets are 24/7, so no market hours check needed
  *
- * Uses database-backed rate limiting for Twelve Data API (8/min, 800/day)
+ * Uses CoinAPI (no rate limiting - date-bounded queries at 10 credits per call)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Environment check:`);
     console.log(`   NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING'}`);
     console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING'}`);
-    console.log(`   TWELVE_DATA_API_KEY: ${process.env.TWELVE_DATA_API_KEY ? 'SET' : 'MISSING'}`);
+    console.log(`   COINAPI_API_KEY: ${process.env.COINAPI_API_KEY ? 'SET' : 'MISSING'}`);
 
     try {
       console.log('✓ Importing crypto scanner module');
@@ -69,33 +69,15 @@ export async function POST(request: NextRequest) {
         console.error('❌ Background crypto scan error:', error);
       });
 
-      // Get current usage stats BEFORE scan starts
-      const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');
-      const usageStats = await getTwelveDataUsageStats();
-
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
-        message: 'Crypto scan started in background (rate-limited to 8 calls/min)',
+        message: 'Crypto scan started in background using CoinAPI',
         scanStatus: 'running',
-        usageStats: usageStats ? {
-          requestsLimitPerMinute: usageStats.requestsLimitPerMinute,
-          requestsLimitPerDay: usageStats.requestsLimitPerDay,
-          requestsUsedThisMinute: usageStats.requestsUsedThisMinute,
-          requestsUsedToday: usageStats.requestsUsedToday,
-          resetTime: usageStats.resetTime.toISOString(),
-          lastUpdated: usageStats.lastUpdated.toISOString(),
-          percentUsedMinute: usageStats.percentUsedMinute,
-          percentUsedDay: usageStats.percentUsedDay,
-        } : null,
       });
     } catch (scanError) {
       console.error('❌ Crypto scanner execution error:', scanError);
       console.error('   Error stack:', scanError instanceof Error ? scanError.stack : 'No stack trace');
-
-      // Even on error, return usage stats to update client (database-backed)
-      const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');
-      const usageStats = await getTwelveDataUsageStats();
 
       throw scanError; // Re-throw to be caught by outer catch block
     }

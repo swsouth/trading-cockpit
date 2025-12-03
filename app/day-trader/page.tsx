@@ -51,17 +51,15 @@ interface AlpacaUsageStats {
   message?: string;
 }
 
-interface TwelveDataUsageStats {
+interface CoinApiUsageStats {
   available: boolean;
   stats?: {
-    requestsLimitPerMinute: number;
-    requestsLimitPerDay: number;
-    requestsUsedThisMinute: number;
-    requestsUsedToday: number;
-    resetTime: string;
+    balance: number;
+    creditsPerScan: number;
+    estimatedScansRemaining: number;
+    creditsPerCrypto: number;
+    cryptosPerScan: number;
     lastUpdated: string;
-    percentUsedMinute: number;
-    percentUsedDay: number;
   };
   message?: string;
 }
@@ -73,7 +71,7 @@ export default function DayTraderPage() {
   const [error, setError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [alpacaUsage, setAlpacaUsage] = useState<AlpacaUsageStats | null>(null);
-  const [twelveDataUsage, setTwelveDataUsage] = useState<TwelveDataUsageStats | null>(null);
+  const [coinApiUsage, setCoinApiUsage] = useState<CoinApiUsageStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
@@ -234,11 +232,9 @@ export default function DayTraderPage() {
   };
 
   const isCryptoScannerDisabled = () => {
-    if (!twelveDataUsage?.available || !twelveDataUsage.stats) return false;
-    // Twelve Data: 8/min OR 800/day limit, disable if either exceeded
-    // Using 100% threshold since we're at the limit (8/8 or 800/800)
-    return twelveDataUsage.stats.requestsUsedThisMinute >= twelveDataUsage.stats.requestsLimitPerMinute ||
-           twelveDataUsage.stats.requestsUsedToday >= twelveDataUsage.stats.requestsLimitPerDay;
+    // CoinAPI has no rate limits - credit-based system
+    // Never disable crypto scanner
+    return false;
   };
 
   const isScannerDisabled = activeTab === 'stocks' ? isStockScannerDisabled() : isCryptoScannerDisabled();
@@ -292,14 +288,14 @@ export default function DayTraderPage() {
     }
   };
 
-  // Fetch Twelve Data usage stats
-  const fetchTwelveDataUsage = async () => {
+  // Fetch CoinAPI usage stats
+  const fetchCoinApiUsage = async () => {
     try {
-      const response = await fetch('/api/twelve-data-usage');
+      const response = await fetch('/api/coinapi-usage');
       const data = await response.json();
-      setTwelveDataUsage(data);
+      setCoinApiUsage(data);
     } catch (err) {
-      console.error('Error fetching Twelve Data usage:', err);
+      console.error('Error fetching CoinAPI usage:', err);
     }
   };
 
@@ -349,14 +345,6 @@ export default function DayTraderPage() {
         throw new Error(data.message || 'Scanner failed');
       }
 
-      // Update usage stats from response (if crypto scanner)
-      if (data.usageStats && activeTab === 'crypto') {
-        setTwelveDataUsage({
-          available: true,
-          stats: data.usageStats,
-        });
-      }
-
       if (data.skipped) {
         toast({
           title: 'Scanner Skipped',
@@ -375,7 +363,7 @@ export default function DayTraderPage() {
           if (activeTab === 'stocks') {
             fetchAlpacaUsage();
           } else {
-            fetchTwelveDataUsage();
+            fetchCoinApiUsage();
           }
         }, 1000);
       }
@@ -389,11 +377,6 @@ export default function DayTraderPage() {
         description: errorMessage,
         variant: 'destructive',
       });
-
-      // Refresh usage stats even on error to get updated counts
-      if (activeTab === 'crypto') {
-        fetchTwelveDataUsage();
-      }
     } finally {
       setScannerRunning(false);
     }
@@ -405,13 +388,13 @@ export default function DayTraderPage() {
       fetchOpportunities();
       fetchMarketStatus();
       fetchAlpacaUsage();
-      fetchTwelveDataUsage();
+      fetchCoinApiUsage();
 
       const interval = setInterval(() => {
         fetchOpportunities();
         fetchMarketStatus();
         fetchAlpacaUsage();
-        fetchTwelveDataUsage();
+        fetchCoinApiUsage();
       }, 10000); // 10 seconds
 
       return () => clearInterval(interval);
@@ -571,9 +554,7 @@ export default function DayTraderPage() {
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 {activeTab === 'stocks'
                   ? 'Alpaca API limit reached - wait for reset'
-                  : (twelveDataUsage?.stats?.requestsUsedToday ?? 0) >= (twelveDataUsage?.stats?.requestsLimitPerDay ?? 800)
-                    ? 'Daily limit reached (800 calls) - resets at midnight'
-                    : 'Rate limit reached (8/min) - wait for reset'}
+                  : 'Scanner is available - no rate limits!'}
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
               </div>
             )}
@@ -643,61 +624,43 @@ export default function DayTraderPage() {
           </CardContent>
         </Card>
 
-        {/* Twelve Data API Usage Card (Crypto) */}
+        {/* CoinAPI Usage Card (Crypto) */}
         <Card>
           <CardContent className="pt-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Activity className={`h-5 w-5 ${
-                    twelveDataUsage?.available && twelveDataUsage.stats
-                      ? (twelveDataUsage.stats.percentUsedMinute >= 90 ? 'text-red-500' :
-                         twelveDataUsage.stats.percentUsedMinute >= 70 ? 'text-orange-500' :
-                         'text-green-500')
-                      : 'text-gray-400'
-                  }`} />
-                  <div>
-                    <p className="font-semibold">Twelve Data (Crypto)</p>
-                    <p className="text-sm text-muted-foreground">
-                      {twelveDataUsage?.available && twelveDataUsage.stats
-                        ? `${twelveDataUsage.stats.requestsUsedThisMinute}/${twelveDataUsage.stats.requestsLimitPerMinute} per min`
-                        : 'No crypto calls yet'}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bitcoin className={`h-5 w-5 ${
+                  coinApiUsage?.available && coinApiUsage.stats
+                    ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'text-red-500' :
+                       coinApiUsage.stats.estimatedScansRemaining < 50 ? 'text-orange-500' :
+                       'text-green-500')
+                    : 'text-gray-400'
+                }`} />
+                <div>
+                  <p className="font-semibold">CoinAPI (Crypto)</p>
+                  <p className="text-sm text-muted-foreground">
+                    {coinApiUsage?.available && coinApiUsage.stats
+                      ? `$${coinApiUsage.stats.balance.toFixed(2)} balance`
+                      : 'No API calls made yet'}
+                  </p>
+                  {coinApiUsage?.available && coinApiUsage.stats && (
+                    <p className="text-xs text-muted-foreground">
+                      ~{coinApiUsage.stats.estimatedScansRemaining} scans remaining
                     </p>
-                    {twelveDataUsage?.available && twelveDataUsage.stats && (
-                      <p className="text-xs text-muted-foreground">
-                        {twelveDataUsage.stats.requestsUsedToday}/{twelveDataUsage.stats.requestsLimitPerDay} today
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-                <Badge className={
-                  twelveDataUsage?.available && twelveDataUsage.stats
-                    ? (twelveDataUsage.stats.percentUsedMinute >= 90 ? 'bg-red-500' :
-                       twelveDataUsage.stats.percentUsedMinute >= 70 ? 'bg-orange-500' :
-                       'bg-green-500')
-                    : 'bg-gray-400'
-                }>
-                  {twelveDataUsage?.available && twelveDataUsage.stats
-                    ? `${twelveDataUsage.stats.percentUsedMinute}%/MIN`
-                    : 'IDLE'}
-                </Badge>
               </div>
-              {twelveDataUsage?.available && twelveDataUsage.stats && twelveDataUsage.stats.requestsUsedThisMinute > 0 && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>
-                    Resets in {(() => {
-                      const resetTime = new Date(twelveDataUsage.stats.resetTime).getTime();
-                      const now = currentTime.getTime();
-                      const diff = Math.max(0, resetTime - now);
-                      const seconds = Math.floor(diff / 1000);
-                      const minutes = Math.floor(seconds / 60);
-                      const remainingSeconds = seconds % 60;
-                      return `${minutes}m ${remainingSeconds}s`;
-                    })()}
-                  </span>
-                </div>
-              )}
+              <Badge className={
+                coinApiUsage?.available && coinApiUsage.stats
+                  ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'bg-red-500' :
+                     coinApiUsage.stats.estimatedScansRemaining < 50 ? 'bg-orange-500' :
+                     'bg-green-500')
+                  : 'bg-gray-400'
+              }>
+                {coinApiUsage?.available && coinApiUsage.stats
+                  ? `${coinApiUsage.stats.creditsPerScan} credits/scan`
+                  : 'IDLE'}
+              </Badge>
             </div>
           </CardContent>
         </Card>

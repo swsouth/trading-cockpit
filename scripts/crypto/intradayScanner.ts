@@ -284,7 +284,7 @@ export async function runIntradayCryptoScan() {
     console.log(`  ${rec.symbol}: ${rec.setup_type} (${rec.opportunity_score}/100) - Valid until ${new Date(rec.valid_until!).toLocaleTimeString()}`);
   });
 
-  // Save to database (crypto_intraday_recommendations table)
+  // Save to database (intraday_opportunities table - unified with stock scanner)
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -295,29 +295,52 @@ export async function runIntradayCryptoScan() {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Delete old intraday recommendations (older than 4 hours)
+    // Delete old crypto opportunities (older than 4 hours)
     const fourHoursAgo = new Date();
     fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
     const { error: deleteError } = await supabase
-      .from('crypto_intraday_recommendations')
+      .from('intraday_opportunities')
       .delete()
-      .lt('scan_date', fourHoursAgo.toISOString());
+      .eq('asset_type', 'crypto')
+      .lt('scan_timestamp', fourHoursAgo.toISOString());
 
     if (deleteError) {
-      console.warn('⚠️  Warning: Failed to cleanup old recommendations:', deleteError);
+      console.warn('⚠️  Warning: Failed to cleanup old crypto opportunities:', deleteError);
     }
 
-    // Insert new recommendations
+    // Map recommendations to intraday_opportunities format
+    const opportunities = recommendations.map(rec => ({
+      user_id: null, // System-generated (not user-specific)
+      symbol: rec.symbol,
+      timeframe: rec.timeframe,
+      scan_timestamp: rec.scan_date,
+      recommendation_type: rec.recommendation_type,
+      entry_price: rec.entry_price,
+      target_price: rec.target_price,
+      stop_loss: rec.stop_loss,
+      opportunity_score: rec.opportunity_score,
+      confidence_level: rec.confidence_level,
+      rationale: rec.rationale,
+      current_price: rec.current_price,
+      channel_status: rec.channel_status,
+      pattern_detected: rec.pattern_detected,
+      rsi: null, // Not calculated in current implementation
+      expires_at: rec.valid_until,
+      status: 'active',
+      asset_type: 'crypto',
+    }));
+
+    // Insert new opportunities
     const { error: insertError } = await supabase
-      .from('crypto_intraday_recommendations')
-      .insert(recommendations);
+      .from('intraday_opportunities')
+      .insert(opportunities);
 
     if (insertError) {
       throw insertError;
     }
 
-    console.log(`\n💾 Saved ${recommendations.length} recommendations to database`);
+    console.log(`\n💾 Saved ${opportunities.length} crypto opportunities to database`);
 
   } catch (error) {
     console.error('\n❌ Error saving to database:', error);
