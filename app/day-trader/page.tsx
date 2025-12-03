@@ -1138,10 +1138,22 @@ export default function DayTraderPage() {
                       <div>
                         <p className="text-sm text-muted-foreground">Target</p>
                         <p className="text-lg font-semibold text-green-600">${opp.target_price.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          +{(opp.recommendation_type === 'long'
+                            ? ((opp.target_price - opp.entry_price) / opp.entry_price) * 100
+                            : ((opp.entry_price - opp.target_price) / opp.entry_price) * 100
+                          ).toFixed(1)}%
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Stop</p>
                         <p className="text-lg font-semibold text-red-600">${opp.stop_loss.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          -{(opp.recommendation_type === 'long'
+                            ? ((opp.entry_price - opp.stop_loss) / opp.entry_price) * 100
+                            : ((opp.stop_loss - opp.entry_price) / opp.entry_price) * 100
+                          ).toFixed(1)}%
+                        </p>
                       </div>
                     </div>
 
