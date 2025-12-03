@@ -101,20 +101,8 @@ function convertToRecord(
   };
 }
 
-/**
- * Deactivate old recommendations (make only today's scan active)
- */
-export async function deactivateOldRecommendations(currentScanDate: string): Promise<void> {
-  const { error } = await supabase
-    .from('trade_recommendations')
-    .update({ is_active: false })
-    .neq('scan_date', currentScanDate)
-    .eq('is_active', true);
-
-  if (error) {
-    console.error('Error deactivating old recommendations:', error.message);
-  }
-}
+// Removed deactivateOldRecommendations - relying on natural expiration via expires_at timestamp
+// Recommendations now persist for 7 days and accumulate throughout the week (Mon+Tue+Wed+Thu+Fri)
 
 /**
  * Store recommendations in database
@@ -133,10 +121,7 @@ export async function storeRecommendations(
     return 0;
   }
 
-  // FIRST: Deactivate all old recommendations (only today's scan should be active)
-  await deactivateOldRecommendations(scanDate);
-
-  // Insert in batches of 100
+  // Insert in batches of 100 (recommendations accumulate throughout the week)
   const batchSize = 100;
   let inserted = 0;
 

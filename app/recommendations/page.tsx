@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, TrendingUp, RefreshCw, Target, AlertCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, TrendingUp, RefreshCw, Target, AlertCircle, Calendar, Flame, Star } from 'lucide-react';
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { PaperTradeConfirmDialog } from '@/components/PaperTradeConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { usePaperTrade, PaperTradePrep } from '@/hooks/use-paper-trade';
+import { useHotList } from '@/hooks/use-hot-list';
 
 interface RecommendationStats {
   total: number;
@@ -38,6 +40,14 @@ export default function RecommendationsPage() {
   const [loading, setLoading] = useState(false);
   const [latestScanDate, setLatestScanDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'hotlist'>('today');
+  const [hotListItems, setHotListItems] = useState<TradeRecommendation[]>([]);
+  const [hotListLoading, setHotListLoading] = useState(false);
+
+  // Hot List hook
+  const { getHotList } = useHotList();
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -133,21 +143,62 @@ export default function RecommendationsPage() {
     }
   };
 
+  const fetchHotList = async () => {
+    setHotListLoading(true);
+    try {
+      const result = await getHotList();
+      if (result.success && result.items) {
+        setHotListItems(result.items);
+      } else {
+        console.error('Failed to fetch hot list:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching hot list:', error);
+    } finally {
+      setHotListLoading(false);
+    }
+  };
+
   // Fetch on mount and when filters/sorting change
   useEffect(() => {
     fetchRecommendations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendationTypeFilter, confidenceFilter, minScore, minVettingScore, sortBy, sortOrder]);
 
-  // Reset to page 1 when filters change
+  // Fetch hot list when that tab is active
+  useEffect(() => {
+    if (activeTab === 'hotlist') {
+      fetchHotList();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Reset to page 1 when filters or tabs change
   useEffect(() => {
     setCurrentPage(1);
-  }, [recommendationTypeFilter, confidenceFilter, minScore, minVettingScore, symbolFilter, sortBy, sortOrder]);
+  }, [recommendationTypeFilter, confidenceFilter, minScore, minVettingScore, symbolFilter, sortBy, sortOrder, activeTab]);
+
+  // Filter recommendations by active tab
+  const getTabRecommendations = () => {
+    if (activeTab === 'hotlist') {
+      return hotListItems;
+    }
+
+    if (activeTab === 'today') {
+      // Filter for today's scan date only
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      return recommendations.filter(r => r.scan_date.startsWith(today));
+    }
+
+    // 'week' tab shows all active recommendations (default behavior)
+    return recommendations;
+  };
 
   // Calculate paginated results
+  const tabRecommendations = getTabRecommendations();
   const filteredRecommendations = symbolFilter
-    ? recommendations.filter(r => r.symbol === symbolFilter)
-    : recommendations;
+    ? tabRecommendations.filter(r => r.symbol === symbolFilter)
+    : tabRecommendations;
 
   const totalPages = Math.ceil(filteredRecommendations.length / ITEMS_PER_PAGE);
   const paginatedRecommendations = filteredRecommendations.slice(0, currentPage * ITEMS_PER_PAGE);
@@ -175,6 +226,12 @@ export default function RecommendationsPage() {
   const handleCancelTrade = () => {
     setConfirmDialogOpen(false);
     setPendingTrade(null);
+  };
+
+  // Handle unpin from hot list
+  const handleUnpin = () => {
+    // Refresh hot list after unpinning
+    fetchHotList();
   };
 
   return (
@@ -211,6 +268,42 @@ export default function RecommendationsPage() {
           )}
         </Button>
       </div>
+
+      {/* Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'today' | 'week' | 'hotlist')} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-[600px] mx-auto">
+          <TabsTrigger value="today" className="gap-2">
+            <Calendar className="h-4 w-4" />
+            Today
+            {(() => {
+              const todayCount = recommendations.filter(r => r.scan_date.startsWith(new Date().toISOString().split('T')[0])).length;
+              return todayCount > 0 ? (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {todayCount}
+                </Badge>
+              ) : null;
+            })()}
+          </TabsTrigger>
+          <TabsTrigger value="week" className="gap-2">
+            <Flame className="h-4 w-4" />
+            This Week
+            {recommendations.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {recommendations.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="hotlist" className="gap-2">
+            <Star className="h-4 w-4" />
+            Hot List
+            {hotListItems.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {hotListItems.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Preset Filter Chips - Quick Access */}
       <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-blue-200 dark:border-blue-900">
@@ -700,6 +793,8 @@ export default function RecommendationsPage() {
             key={recommendation.id}
             recommendation={recommendation}
             onPaperTrade={handlePaperTradeClick}
+            hotListId={activeTab === 'hotlist' ? (recommendation as any).hot_list_id : undefined}
+            onUnpin={activeTab === 'hotlist' ? handleUnpin : undefined}
           />
         ))}
       </div>

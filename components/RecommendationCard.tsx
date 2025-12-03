@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { TradeRecommendation } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,10 +16,14 @@ import {
   TrendingUpIcon,
   BarChart3,
   DollarSign,
+  Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import ChartModal from './ChartModal';
 import { getCompanyName } from '@/lib/stockNames';
+import { useHotList } from '@/hooks/use-hot-list';
+import { useAuth } from '@/lib/AuthContext';
+import { toast } from 'sonner';
 
 // Dynamic import VettingBreakdown to avoid SSR issues with Radix UI Progress
 const VettingBreakdown = dynamic(() => import('./VettingBreakdown').then(mod => ({ default: mod.VettingBreakdown })), {
@@ -30,11 +34,17 @@ const VettingBreakdown = dynamic(() => import('./VettingBreakdown').then(mod => 
 interface RecommendationCardProps {
   recommendation: TradeRecommendation;
   onPaperTrade?: (recommendation: TradeRecommendation) => void;
+  hotListId?: string; // If provided, this card shows a pinned item
+  onUnpin?: () => void; // Callback when unpinned
 }
 
-export function RecommendationCard({ recommendation, onPaperTrade }: RecommendationCardProps) {
+export function RecommendationCard({ recommendation, onPaperTrade, hotListId, onUnpin }: RecommendationCardProps) {
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isPaperTrading, setIsPaperTrading] = useState(false);
+  const [isPinnedState, setIsPinnedState] = useState(!!hotListId);
+
+  const { user } = useAuth();
+  const { isPinning, isUnpinning, pinRecommendation, unpinRecommendation } = useHotList();
 
   const {
     symbol,
@@ -110,9 +120,68 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
     }
   };
 
+  // Calculate scan freshness for badges and colors
+  const getScanFreshness = () => {
+    const scanDateObj = new Date(scan_date);
+    const now = new Date();
+    const diffMs = now.getTime() - scanDateObj.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return { label: 'Today', color: 'bg-green-500', textColor: 'text-green-700 dark:text-green-300' };
+    } else if (diffDays === 1) {
+      return { label: '1 day ago', color: 'bg-blue-500', textColor: 'text-blue-700 dark:text-blue-300' };
+    } else if (diffDays === 2) {
+      return { label: '2 days ago', color: 'bg-yellow-500', textColor: 'text-yellow-700 dark:text-yellow-300' };
+    } else if (diffDays <= 4) {
+      return { label: `${diffDays} days ago`, color: 'bg-orange-500', textColor: 'text-orange-700 dark:text-orange-300' };
+    } else {
+      return { label: `${diffDays} days ago`, color: 'bg-gray-400', textColor: 'text-gray-700 dark:text-gray-300' };
+    }
+  };
+
+  const freshness = getScanFreshness();
+
+  // Handle pin/unpin toggle
+  const handleTogglePin = async () => {
+    if (!user) {
+      toast.error('Please sign in to use Hot List');
+      return;
+    }
+
+    if (isPinnedState && hotListId) {
+      // Unpin
+      const result = await unpinRecommendation(hotListId);
+      if (result.success) {
+        setIsPinnedState(false);
+        toast.success(`${symbol} removed from Hot List`);
+        onUnpin?.();
+      } else {
+        toast.error(result.error || 'Failed to remove from Hot List');
+      }
+    } else {
+      // Pin
+      const result = await pinRecommendation(recommendation.id);
+      if (result.success) {
+        setIsPinnedState(true);
+        toast.success(`${symbol} added to Hot List`);
+      } else {
+        if (result.error?.includes('already in your hot list')) {
+          toast.info(`${symbol} is already in your Hot List`);
+          setIsPinnedState(true);
+        } else {
+          toast.error(result.error || 'Failed to add to Hot List');
+        }
+      }
+    }
+  };
+
   return (
-    <Card className={isHighRisk ? 'border-2 border-red-500 dark:border-red-600' : ''}>
-      <CardHeader className="pb-3">
+    <Card className={`relative ${isHighRisk ? 'border-2 border-red-500 dark:border-red-600' : ''}`}>
+      {/* Color-coded accent bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${freshness.color} rounded-l-lg`} />
+
+      <CardHeader className="pb-3 pl-5">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex flex-col gap-1">
@@ -124,12 +193,28 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
                 >
                   {symbol}
                 </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleTogglePin}
+                  disabled={isPinning || isUnpinning}
+                  className={`h-8 w-8 p-0 ${isPinnedState ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
+                  title={isPinnedState ? 'Remove from Hot List' : 'Add to Hot List'}
+                >
+                  <Star className={`h-5 w-5 ${isPinnedState ? 'fill-current' : ''}`} />
+                </Button>
               </div>
               <div className="text-sm text-muted-foreground -mt-1">
                 {getCompanyName(symbol)}
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap mt-2">
+              {/* Scan Date Badge */}
+              <Badge variant="outline" className={`${freshness.textColor} border-current`}>
+                <Calendar className="h-3 w-3 mr-1" />
+                {freshness.label}
+              </Badge>
+
               <Badge className={getDirectionColor(recommendation_type)}>
                 {recommendation_type === 'long' ? (
                   <>
@@ -168,7 +253,7 @@ export function RecommendationCard({ recommendation, onPaperTrade }: Recommendat
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pl-5">
         {/* Price Levels */}
         <div className="bg-muted/50 rounded-lg p-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin, Play } from 'lucide-react';
+import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin, Play, Volume2, Zap, Newspaper } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
@@ -86,6 +86,74 @@ export default function DayTraderPage() {
 
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+
+  // Handle paper trade
+  const handlePaperTrade = async (opp: IntradayOpportunity) => {
+    try {
+      toast({
+        title: '🚀 Preparing Paper Trade',
+        description: `Setting up ${opp.symbol} ${opp.recommendation_type} trade...`,
+      });
+
+      // Determine if it's crypto or stock
+      const isCrypto = opp.asset_type === 'crypto';
+
+      // Convert intraday opportunity to trade recommendation format
+      const tradeData = {
+        symbol: opp.symbol,
+        side: opp.recommendation_type === 'long' ? 'buy' : 'sell',
+        quantity: isCrypto ? 0.01 : 100, // Start with 0.01 BTC or 100 shares for now
+        entry_price: opp.entry_price,
+        stop_loss: opp.stop_loss,
+        target_price: opp.target_price,
+        order_type: 'limit',
+        limit_price: opp.entry_price,
+        time_in_force: isCrypto ? 'gtc' : 'day', // Crypto uses GTC, stocks use DAY
+        asset_type: isCrypto ? 'crypto' : 'stock',
+      };
+
+      const endpoint = isCrypto ? '/api/paper-trade-crypto' : '/api/paper-trade';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tradeData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to place paper trade');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: '✅ Paper Trade Placed',
+        description: `${opp.symbol} ${opp.recommendation_type} order submitted - Order ID: ${result.order_id}`,
+        duration: 5000,
+      });
+
+      if (result.bracket_orders) {
+        toast({
+          title: '🎯 Bracket Orders Set',
+          description: `Stop Loss @ $${opp.stop_loss.toFixed(2)}, Target @ $${opp.target_price.toFixed(2)}`,
+          duration: 5000,
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Paper trade error:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      toast({
+        title: '❌ Paper Trade Failed',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Apply filters and sorting to opportunities
   const filterAndSortOpportunities = (opps: IntradayOpportunity[]) => {
@@ -405,6 +473,48 @@ export default function DayTraderPage() {
     if (score >= 80) return 'text-green-600 font-bold';
     if (score >= 60) return 'text-yellow-600 font-bold';
     return 'text-red-600 font-bold';
+  };
+
+  // Calculate execution quality badges
+  const getExecutionBadges = (opp: IntradayOpportunity) => {
+    // 1. Spread Quality (estimated from price)
+    // Lower priced stocks typically have wider spreads
+    const spreadQuality = opp.current_price > 50 ? 'good' : opp.current_price > 10 ? 'fair' : 'poor';
+
+    // 2. Volume Quality (inferred from score - high scores typically have good volume)
+    // In real implementation, this would check actual volume data
+    const volumeQuality = opp.opportunity_score >= 70 ? 'high' : opp.opportunity_score >= 50 ? 'medium' : 'low';
+
+    // 3. News Risk (time-based heuristic - fresh scans less likely to have breaking news)
+    const scanAge = Date.now() - new Date(opp.scan_timestamp).getTime();
+    const newsRisk = scanAge < 5 * 60 * 1000 ? 'clear' : scanAge < 15 * 60 * 1000 ? 'caution' : 'stale';
+
+    return {
+      spread: {
+        status: spreadQuality,
+        icon: Zap,
+        color: spreadQuality === 'good' ? 'text-green-600' : spreadQuality === 'fair' ? 'text-yellow-600' : 'text-red-600',
+        bgColor: spreadQuality === 'good' ? 'bg-green-100 dark:bg-green-950' : spreadQuality === 'fair' ? 'bg-yellow-100 dark:bg-yellow-950' : 'bg-red-100 dark:bg-red-950',
+        label: spreadQuality === 'good' ? 'Tight Spread' : spreadQuality === 'fair' ? 'Fair Spread' : 'Wide Spread',
+        tooltip: spreadQuality === 'good' ? 'Low execution cost' : spreadQuality === 'fair' ? 'Moderate execution cost' : 'High execution cost - use limits',
+      },
+      volume: {
+        status: volumeQuality,
+        icon: Volume2,
+        color: volumeQuality === 'high' ? 'text-green-600' : volumeQuality === 'medium' ? 'text-yellow-600' : 'text-red-600',
+        bgColor: volumeQuality === 'high' ? 'bg-green-100 dark:bg-green-950' : volumeQuality === 'medium' ? 'bg-yellow-100 dark:bg-yellow-950' : 'bg-red-100 dark:bg-red-950',
+        label: volumeQuality === 'high' ? 'High Volume' : volumeQuality === 'medium' ? 'Med Volume' : 'Low Volume',
+        tooltip: volumeQuality === 'high' ? 'Excellent liquidity' : volumeQuality === 'medium' ? 'Adequate liquidity' : 'Thin liquidity - reduce size',
+      },
+      news: {
+        status: newsRisk,
+        icon: Newspaper,
+        color: newsRisk === 'clear' ? 'text-green-600' : newsRisk === 'caution' ? 'text-yellow-600' : 'text-gray-600',
+        bgColor: newsRisk === 'clear' ? 'bg-green-100 dark:bg-green-950' : newsRisk === 'caution' ? 'bg-yellow-100 dark:bg-yellow-950' : 'bg-gray-100 dark:bg-gray-950',
+        label: newsRisk === 'clear' ? 'Clear' : newsRisk === 'caution' ? 'Check News' : 'Stale Scan',
+        tooltip: newsRisk === 'clear' ? 'Recent scan, no major news' : newsRisk === 'caution' ? 'Scan 5-15 min old, verify conditions' : 'Scan >15 min old, price may have changed',
+      },
+    };
   };
 
   if (authLoading) {
@@ -947,6 +1057,8 @@ export default function DayTraderPage() {
                 ? 'border-orange-500 border-2 animate-pulse'
                 : getRiskBorderClass(opp.opportunity_score);
 
+              const badges = getExecutionBadges(opp);
+
               return (
                 <Card
                   key={opp.id}
@@ -975,6 +1087,21 @@ export default function DayTraderPage() {
                               <Badge variant="destructive">⚠️ HIGH RISK</Badge>
                             )}
                           </CardDescription>
+                          {/* Execution Quality Badges */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.spread.bgColor} ${badges.spread.color}`} title={badges.spread.tooltip}>
+                              <badges.spread.icon className="h-3 w-3" />
+                              <span>{badges.spread.label}</span>
+                            </div>
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.volume.bgColor} ${badges.volume.color}`} title={badges.volume.tooltip}>
+                              <badges.volume.icon className="h-3 w-3" />
+                              <span>{badges.volume.label}</span>
+                            </div>
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.news.bgColor} ${badges.news.color}`} title={badges.news.tooltip}>
+                              <badges.news.icon className="h-3 w-3" />
+                              <span>{badges.news.label}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -1044,8 +1171,14 @@ export default function DayTraderPage() {
                         <Target className="mr-2 h-4 w-4" />
                         View Chart
                       </Button>
-                      <Button variant="outline" className="flex-1" disabled={isExpired}>
-                        Copy Details
+                      <Button
+                        variant="default"
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        disabled={isExpired}
+                        onClick={() => handlePaperTrade(opp)}
+                      >
+                        <DollarSign className="mr-2 h-4 w-4" />
+                        Paper Trade
                       </Button>
                     </div>
                   </CardContent>

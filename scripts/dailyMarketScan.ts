@@ -48,11 +48,26 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
   console.log(`Scan Date: ${scanDate}\n`);
 
   try {
-    // 1. Get stock universe
-    console.log('📊 Fetching stock universe...');
-    const symbols = await getActiveStocks();
+    // 1. Get today's stock universe from rotation
+    console.log('📊 Loading today\'s stock universe from rotation...');
+    const { getTodaysUniverse, getRotationStats } = await import('./stockUniverseRotation');
+    const todaysStocks = getTodaysUniverse();
+
+    if (todaysStocks.length === 0) {
+      console.log('   ⚠️  Weekend - no stocks to scan');
+      return;
+    }
+
+    const symbols = todaysStocks.map(s => s.symbol);
     stats.totalStocks = symbols.length;
-    console.log(`   Found ${symbols.length} active stocks\n`);
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[new Date().getDay()];
+    const rotationStats = getRotationStats();
+
+    console.log(`   📅 Day: ${todayName}`);
+    console.log(`   🎯 Stocks: ${symbols.length} (${todayName} rotation)`);
+    console.log(`   📊 Weekly Coverage: ${rotationStats.total} unique stocks across 5 days\n`);
 
     // 2. Process in batches
     const batches: string[][] = [];

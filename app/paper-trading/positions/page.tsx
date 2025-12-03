@@ -15,6 +15,8 @@ import {
   Shield,
   Activity,
   AlertCircle,
+  Clock,
+  X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -56,7 +58,8 @@ interface AccountInfo {
 
 export default function PaperTradingPositionsPage() {
   const [positions, setPositions] = useState<Position[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
+  const [filledOrders, setFilledOrders] = useState<Order[]>([]);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,25 +71,28 @@ export default function PaperTradingPositionsPage() {
 
     try {
       // Fetch account info, positions, and orders in parallel
-      const [accountRes, positionsRes, ordersRes] = await Promise.all([
+      const [accountRes, positionsRes, pendingOrdersRes, filledOrdersRes] = await Promise.all([
         fetch('/api/paper-trading/account'),
         fetch('/api/paper-trading/positions'),
+        fetch('/api/paper-trading/orders?status=open&limit=20'),
         fetch('/api/paper-trading/orders?status=filled&limit=20'),
       ]);
 
-      if (!accountRes.ok || !positionsRes.ok || !ordersRes.ok) {
+      if (!accountRes.ok || !positionsRes.ok || !pendingOrdersRes.ok || !filledOrdersRes.ok) {
         throw new Error('Failed to fetch data');
       }
 
-      const [accountData, positionsData, ordersData] = await Promise.all([
+      const [accountData, positionsData, pendingOrdersData, filledOrdersData] = await Promise.all([
         accountRes.json(),
         positionsRes.json(),
-        ordersRes.json(),
+        pendingOrdersRes.json(),
+        filledOrdersRes.json(),
       ]);
 
       setAccountInfo(accountData);
       setPositions(positionsData.positions || []);
-      setOrders(ordersData.orders || []);
+      setPendingOrders(pendingOrdersData.orders || []);
+      setFilledOrders(filledOrdersData.orders || []);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
       setError(message);
@@ -127,6 +133,34 @@ export default function PaperTradingPositionsPage() {
     } catch (err) {
       toast({
         title: '❌ Failed to Close Position',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      const response = await fetch('/api/paper-trading/cancel-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel order');
+      }
+
+      toast({
+        title: '✅ Order Cancelled',
+        description: 'Order has been successfully cancelled',
+      });
+
+      // Refresh data
+      fetchData();
+    } catch (err) {
+      toast({
+        title: '❌ Failed to Cancel Order',
         description: err instanceof Error ? err.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -225,17 +259,89 @@ export default function PaperTradingPositionsPage() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="positions" className="space-y-4">
+      <Tabs defaultValue="pending" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="pending">
+            <Clock className="h-4 w-4 mr-2" />
+            Pending Orders ({pendingOrders.length})
+          </TabsTrigger>
           <TabsTrigger value="positions">
             <Activity className="h-4 w-4 mr-2" />
             Open Positions ({positions.length})
           </TabsTrigger>
-          <TabsTrigger value="orders">
+          <TabsTrigger value="history">
             <Target className="h-4 w-4 mr-2" />
             Order History
           </TabsTrigger>
         </TabsList>
+
+        {/* Pending Orders Tab */}
+        <TabsContent value="pending" className="space-y-4">
+          {pendingOrders.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <Clock className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                <p className="text-lg font-medium">No Pending Orders</p>
+                <p className="text-sm mt-1">
+                  Open orders will appear here waiting to be filled
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {pendingOrders.map((order) => (
+                <Card key={order.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <div className="font-bold text-lg">{order.symbol}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(order.created_at).toLocaleDateString()} at{' '}
+                            {new Date(order.created_at).toLocaleTimeString()}
+                          </div>
+                        </div>
+                        <Badge
+                          className={
+                            order.side === 'buy'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          }
+                        >
+                          {order.side.toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline">{order.type.toUpperCase()}</Badge>
+                        <Badge variant="secondary">
+                          {order.status.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-bold">
+                            {order.qty} shares
+                          </div>
+                          {order.limit_price && (
+                            <div className="text-sm text-muted-foreground">
+                              @ ${order.limit_price.toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleCancelOrder(order.id)}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
         {/* Positions Tab */}
         <TabsContent value="positions" className="space-y-4">
@@ -332,9 +438,9 @@ export default function PaperTradingPositionsPage() {
           )}
         </TabsContent>
 
-        {/* Orders Tab */}
-        <TabsContent value="orders" className="space-y-4">
-          {orders.length === 0 ? (
+        {/* Order History Tab */}
+        <TabsContent value="history" className="space-y-4">
+          {filledOrders.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
                 <Target className="mx-auto h-12 w-12 mb-4 opacity-50" />
@@ -344,7 +450,7 @@ export default function PaperTradingPositionsPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {orders.map((order) => (
+              {filledOrders.map((order) => (
                 <Card key={order.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
@@ -352,23 +458,21 @@ export default function PaperTradingPositionsPage() {
                         <div>
                           <div className="font-bold text-lg">{order.symbol}</div>
                           <div className="text-sm text-muted-foreground">
-                            {new Date(order.created_at).toLocaleDateString()} at{' '}
-                            {new Date(order.created_at).toLocaleTimeString()}
+                            Filled: {order.filled_at ? new Date(order.filled_at).toLocaleDateString() : 'N/A'} at{' '}
+                            {order.filled_at ? new Date(order.filled_at).toLocaleTimeString() : 'N/A'}
                           </div>
                         </div>
                         <Badge
                           className={
                             order.side === 'buy'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                           }
                         >
                           {order.side.toUpperCase()}
                         </Badge>
                         <Badge variant="outline">{order.type.toUpperCase()}</Badge>
-                        <Badge
-                          variant={order.status === 'filled' ? 'default' : 'secondary'}
-                        >
+                        <Badge variant="default">
                           {order.status.toUpperCase()}
                         </Badge>
                       </div>

@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Paper Trade API Route
- * Places paper trades via Alpaca REST API
- * Supports bracket orders (entry + stop loss + take profit)
+ * Crypto Paper Trade API Route
+ * Places crypto paper trades via Alpaca REST API
+ *
+ * Key differences from stock trading:
+ * - Uses crypto pairs (e.g., BTC/USD, ETH/USD)
+ * - Supports notional (dollar amount) or qty (coin amount)
+ * - Time in force: GTC or IOC only (no DAY orders)
+ * - Market orders require notional XOR qty
+ * - Limit orders require qty and limit_price
+ * - Stop limit orders require qty, stop_price, and limit_price
  */
 
 const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
 const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
-// Remove /v2 from BASE_URL if present (we add it explicitly in the endpoint)
 const ALPACA_BASE_URL = (process.env.ALPACA_BASE_URL || 'https://paper-api.alpaca.markets').replace(/\/v2$/, '');
 
 export async function POST(request: NextRequest) {
@@ -18,18 +24,27 @@ export async function POST(request: NextRequest) {
       symbol,
       side,
       quantity,
+      notional,
       order_type,
       limit_price,
+      stop_price,
       time_in_force,
       stop_loss,
       target_price,
-      entry_price, // For bracket orders when limit_price not provided
     } = body;
 
     // Validate required fields
-    if (!symbol || !side || !quantity) {
+    if (!symbol || !side) {
       return NextResponse.json(
-        { error: 'Missing required fields: symbol, side, quantity' },
+        { error: 'Missing required fields: symbol, side' },
+        { status: 400 }
+      );
+    }
+
+    // Validate quantity/notional
+    if (!quantity && !notional) {
+      return NextResponse.json(
+        { error: 'Must provide either quantity or notional' },
         { status: 400 }
       );
     }
@@ -42,64 +57,80 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('📤 Placing Alpaca order:', {
+    console.log('📤 Placing Alpaca crypto order:', {
       symbol,
       side,
       quantity,
+      notional,
       order_type,
       limit_price,
       with_bracket: !!(stop_loss && target_price),
     });
 
-    // Determine if we should use bracket order
-    const useBracketOrder = !!(stop_loss && target_price && side === 'buy');
-
+    // Build order payload based on order type
     let orderPayload: any;
 
-    if (useBracketOrder) {
-      // Bracket order: Entry + Stop Loss + Take Profit
-      // IMPORTANT: Alpaca REQUIRES limit orders for bracket orders (no market orders)
-      const effectiveLimitPrice = limit_price || entry_price;
+    // Determine effective order type
+    const effectiveOrderType = order_type || 'market';
 
-      if (!effectiveLimitPrice) {
+    if (effectiveOrderType === 'market') {
+      // Market order: requires qty XOR notional
+      orderPayload = {
+        symbol,
+        side,
+        type: 'market',
+        time_in_force: time_in_force || 'gtc', // GTC or IOC for crypto
+      };
+
+      // Add either qty or notional (not both)
+      if (quantity) {
+        orderPayload.qty = quantity;
+      } else if (notional) {
+        orderPayload.notional = notional;
+      }
+    } else if (effectiveOrderType === 'limit') {
+      // Limit order: requires qty and limit_price
+      if (!limit_price || !quantity) {
         return NextResponse.json(
-          { error: 'Limit price required for bracket orders. Alpaca does not support market orders with brackets.' },
+          { error: 'Limit orders require both quantity and limit_price' },
           { status: 400 }
         );
       }
 
       orderPayload = {
         symbol,
-        qty: quantity,
         side,
-        type: 'limit', // Force limit order for bracket
-        limit_price: effectiveLimitPrice,
-        time_in_force: time_in_force || 'day',
-        order_class: 'bracket',
-        take_profit: {
-          limit_price: target_price,
-        },
-        stop_loss: {
-          stop_price: stop_loss,
-        },
+        type: 'limit',
+        qty: quantity,
+        limit_price,
+        time_in_force: time_in_force || 'gtc',
       };
-    } else {
-      // Simple order (no bracket)
+    } else if (effectiveOrderType === 'stop_limit') {
+      // Stop limit order: requires qty, stop_price, and limit_price
+      if (!limit_price || !stop_price || !quantity) {
+        return NextResponse.json(
+          { error: 'Stop limit orders require quantity, stop_price, and limit_price' },
+          { status: 400 }
+        );
+      }
+
       orderPayload = {
         symbol,
-        qty: quantity,
         side,
-        type: order_type || 'limit',
-        time_in_force: time_in_force || 'day',
+        type: 'stop_limit',
+        qty: quantity,
+        limit_price,
+        stop_price,
+        time_in_force: time_in_force || 'gtc',
       };
-
-      // Add limit price for limit orders
-      if (order_type === 'limit' && limit_price) {
-        orderPayload.limit_price = limit_price;
-      }
+    } else {
+      return NextResponse.json(
+        { error: `Unsupported order type: ${effectiveOrderType}` },
+        { status: 400 }
+      );
     }
 
-    console.log('📋 Order payload:', JSON.stringify(orderPayload, null, 2));
+    console.log('📋 Crypto order payload:', JSON.stringify(orderPayload, null, 2));
 
     // Place order via Alpaca API
     const response = await fetch(`${ALPACA_BASE_URL}/v2/orders`, {
@@ -121,7 +152,7 @@ export async function POST(request: NextRequest) {
         errorText,
       });
 
-      let errorMessage = 'Failed to place order';
+      let errorMessage = 'Failed to place crypto order';
       try {
         const errorData = JSON.parse(errorText);
         errorMessage = errorData.message || errorData.code || errorData.error || errorText;
@@ -144,7 +175,7 @@ export async function POST(request: NextRequest) {
     }
 
     const orderResult = await response.json();
-    console.log('✅ Order placed successfully:', orderResult);
+    console.log('✅ Crypto order placed successfully:', orderResult);
 
     return NextResponse.json({
       success: true,
@@ -154,16 +185,16 @@ export async function POST(request: NextRequest) {
       symbol: orderResult.symbol,
       side: orderResult.side,
       qty: orderResult.qty,
+      notional: orderResult.notional,
       order_type: orderResult.type,
-      bracket_orders: useBracketOrder,
-      legs: orderResult.legs || null,
+      bracket_orders: false, // Crypto doesn't support bracket orders yet
     });
 
   } catch (error) {
-    console.error('❌ Paper trade error:', error);
+    console.error('❌ Crypto paper trade error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: `Failed to process paper trade: ${message}` },
+      { error: `Failed to process crypto paper trade: ${message}` },
       { status: 500 }
     );
   }

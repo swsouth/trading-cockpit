@@ -182,7 +182,8 @@ export function usePaperTrade(options: UsePaperTradeOptions = {}) {
         side: recommendation.recommendation_type === 'long' ? 'buy' : 'sell',
         quantity: shares,
         order_type: orderType,
-        limit_price: limitPrice,
+        limit_price: limitPrice || recommendation.entry_price, // Fallback to entry price
+        entry_price: recommendation.entry_price, // For bracket order validation
         time_in_force: 'day',
         stop_loss: recommendation.stop_loss,
         target_price: recommendation.target_price,

@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
-const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
-const ALPACA_BASE_URL = (process.env.ALPACA_BASE_URL || 'https://paper-api.alpaca.markets/v2').replace(/\/v2$/, '');
-
 export async function GET(request: NextRequest) {
   try {
-    if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
-      return NextResponse.json(
-        { error: 'Alpaca credentials not configured' },
-        { status: 500 }
-      );
-    }
-
     const searchParams = request.nextUrl.searchParams;
     const symbol = searchParams.get('symbol');
 
@@ -23,41 +12,62 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch latest quote from Alpaca
-    const response = await fetch(
-      `${ALPACA_BASE_URL}/v2/stocks/${symbol}/quotes/latest`,
+    // Use Yahoo Finance API - no auth required, more reliable
+    const yahooResponse = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`,
       {
         headers: {
-          'APCA-API-KEY-ID': ALPACA_API_KEY,
-          'APCA-API-SECRET-KEY': ALPACA_SECRET_KEY,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
       }
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Alpaca API error:', errorText);
+    if (!yahooResponse.ok) {
+      console.error('Yahoo Finance API error:', yahooResponse.status);
       return NextResponse.json(
-        { error: 'Failed to fetch quote' },
-        { status: response.status }
+        { error: 'Failed to fetch quote from Yahoo Finance' },
+        { status: yahooResponse.status }
       );
     }
 
-    const data = await response.json();
-    const quote = data.quote;
+    const data = await yahooResponse.json();
+    const result = data.chart?.result?.[0];
 
-    // Calculate mid-price from bid/ask
-    const price = (quote.ap + quote.bp) / 2;
+    if (!result || !result.meta) {
+      return NextResponse.json(
+        { error: 'Invalid response from Yahoo Finance' },
+        { status: 500 }
+      );
+    }
+
+    const meta = result.meta;
+    const currentPrice = meta.regularMarketPrice || meta.previousClose;
+
+    if (!currentPrice) {
+      return NextResponse.json(
+        { error: 'No price data available for symbol' },
+        { status: 404 }
+      );
+    }
+
+    // Get bid/ask if available (only during market hours)
+    const bid = meta.bid || null;
+    const ask = meta.ask || null;
 
     return NextResponse.json({
-      symbol: quote.S,
-      price: price,
-      ask_price: quote.ap,
-      bid_price: quote.bp,
-      ask_size: quote.as,
-      bid_size: quote.bs,
-      timestamp: quote.t,
-      source: 'alpaca',
+      symbol: symbol,
+      price: currentPrice,
+      ask_price: ask,
+      bid_price: bid,
+      previous_close: meta.previousClose,
+      change: meta.regularMarketPrice ? currentPrice - meta.previousClose : 0,
+      change_percent: meta.regularMarketPrice
+        ? ((currentPrice - meta.previousClose) / meta.previousClose) * 100
+        : 0,
+      volume: meta.regularMarketVolume || 0,
+      timestamp: new Date(meta.regularMarketTime * 1000).toISOString(),
+      market_state: meta.marketState, // PRE, REGULAR, POST, CLOSED
+      source: 'yahoo_finance',
     });
   } catch (error) {
     console.error('Error fetching quote:', error);
