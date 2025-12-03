@@ -319,7 +319,10 @@ export async function batchGetCryptoMultiTimeframe(
     console.log(`⏳ Processing MTF batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(symbols.length / batchSize)}...`);
 
     // Fetch both timeframes for each symbol in batch
-    const promises = batch.map(async (symbol) => {
+    // Add 7.5s delay between each crypto to spread 8 calls across 30s (well under 60s limit)
+    for (let j = 0; j < batch.length; j++) {
+      const symbol = batch[j];
+
       try {
         const [candles15m, candles1h] = await Promise.all([
           getCrypto15MinCandles(symbol, 24),  // Last 24 hours of 15m bars
@@ -329,9 +332,12 @@ export async function batchGetCryptoMultiTimeframe(
       } catch (error) {
         console.warn(`⚠️ Skipping ${symbol} - MTF fetch failed:`, error);
       }
-    });
 
-    await Promise.all(promises);
+      // Delay between cryptos within batch (except last one)
+      if (j < batch.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 7500)); // 7.5s between cryptos
+      }
+    }
 
     // Delay between batches (except for last batch)
     if (i + batchSize < symbols.length) {
