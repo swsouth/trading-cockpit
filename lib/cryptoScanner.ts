@@ -160,20 +160,28 @@ async function cleanupExpiredOpportunities(): Promise<number> {
   const supabase = createClient(supabaseUrl, supabaseKey);
   const now = new Date().toISOString();
 
-  const { error, count } = await supabase
+  // Count expired opportunities first
+  const { count: beforeCount } = await supabase
+    .from('intraday_opportunities')
+    .select('*', { count: 'exact', head: true })
+    .lt('expires_at', now)
+    .eq('status', 'active')
+    .eq('asset_type', 'crypto');
+
+  // Update them to expired
+  const { error } = await supabase
     .from('intraday_opportunities')
     .update({ status: 'expired' })
     .lt('expires_at', now)
     .eq('status', 'active')
-    .eq('asset_type', 'crypto')
-    .select('*', { count: 'exact', head: true });
+    .eq('asset_type', 'crypto');
 
   if (error) {
     console.error('   ⚠️  Error cleaning up expired opportunities:', error);
     return 0;
   }
 
-  return count || 0;
+  return beforeCount || 0;
 }
 
 /**
@@ -208,13 +216,22 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
   // First, mark all existing crypto opportunities as expired (cleanup)
   console.log('   🧹 Marking expired crypto opportunities...');
   const now = new Date().toISOString();
-  const { error: expireError, count: expiredCount } = await supabase
+
+  // Count expired opportunities first
+  const { count: expiredCount } = await supabase
+    .from('intraday_opportunities')
+    .select('*', { count: 'exact', head: true })
+    .lt('expires_at', now)
+    .eq('status', 'active')
+    .eq('asset_type', 'crypto');
+
+  // Update them to expired
+  const { error: expireError } = await supabase
     .from('intraday_opportunities')
     .update({ status: 'expired' })
     .lt('expires_at', now)
     .eq('status', 'active')
-    .eq('asset_type', 'crypto')
-    .select('*', { count: 'exact', head: true });
+    .eq('asset_type', 'crypto');
 
   if (expireError) {
     console.error('   ⚠️  Error marking expired opportunities:', expireError);
