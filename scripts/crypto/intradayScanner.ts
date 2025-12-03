@@ -8,9 +8,25 @@
  * Each opportunity is valid for ~15 minutes (until next bar closes)
  */
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env.local from project root (required for CoinAPI key)
+config({ path: resolve(__dirname, '../../.env.local') });
+
 import { createClient } from '@supabase/supabase-js';
-import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
+
+// ═══════════════════════════════════════════════════════════════════
+// DATA SOURCE: CoinAPI (PRIMARY - ACTIVE with $30 credits)
+// ═══════════════════════════════════════════════════════════════════
+// Uses date-bounded queries for 10 credit cap optimization
+// Cost: ~20 credits per crypto (15m + 1H data) = 300 credits per full scan
+// ═══════════════════════════════════════════════════════════════════
+import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/coinApiAdapter';
+
+// BACKUP: Twelve Data (kept for fallback if CoinAPI fails)
+// import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
+
 import * as analysis from '../../lib/analysis';
 import * as scoring from '../../lib/scoring';
 import * as tradeCalculator from '../../lib/tradeCalculator';
@@ -101,7 +117,7 @@ async function analyzeCrypto(
       return { symbol, success: false, error: 'No actionable intraday setup' };
     }
 
-    // Build recommendation for database
+    // Build recommendation for database (crypto_intraday_recommendations table)
     const recommendation = {
       symbol: symbol.split('/')[0], // BTC/USD → BTC
       scan_date: new Date().toISOString(),
@@ -110,7 +126,7 @@ async function analyzeCrypto(
       target_price: signal.target,
       stop_loss: signal.stopLoss,
       risk_reward_ratio: signal.riskReward,
-      opportunity_score: signal.score,
+      opportunity_score: Math.round(signal.score), // Round to integer for database
       confidence_level: signal.confidence,
       setup_type: `${signal.recommendation}_${signal.confidence}`,
       pattern_detected: signal.mainPattern || 'none',
@@ -120,12 +136,6 @@ async function analyzeCrypto(
       rationale: signal.rationale,
       timeframe: '15min',
       valid_until: getNext15MinBarClose(),
-      vetting_score: null,
-      vetting_passed: null,
-      vetting_summary: null,
-      vetting_red_flags: null,
-      vetting_green_flags: null,
-      vetting_checks: null,
     };
 
     console.log(`✅ ${symbol}: ${signal.recommendation}_${signal.confidence} (score: ${signal.score})`);
