@@ -60,22 +60,24 @@ export async function POST(request: NextRequest) {
       const { runCryptoScan } = await import('@/lib/cryptoScanner');
       console.log('✅ Crypto scanner module imported successfully');
 
-      console.log('✓ Starting crypto scan');
-      const opportunitiesCount = await runCryptoScan();
+      console.log('✓ Starting crypto scan (async - will run in background)');
 
-      console.log(`✅ Crypto scan completed - found ${opportunitiesCount} opportunities`);
+      // Run scanner in background (don't await - return immediately to avoid timeout)
+      runCryptoScan().then(opportunitiesCount => {
+        console.log(`✅ Background crypto scan completed - found ${opportunitiesCount} opportunities`);
+      }).catch(error => {
+        console.error('❌ Background crypto scan error:', error);
+      });
 
-      // Get updated usage stats after scan (database-backed)
+      // Get current usage stats BEFORE scan starts
       const { getTwelveDataUsageStats } = await import('@/lib/twelveDataCrypto');
       const usageStats = await getTwelveDataUsageStats();
 
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
-        opportunitiesCount,
-        message: opportunitiesCount > 0
-          ? `Found ${opportunitiesCount} new crypto ${opportunitiesCount === 1 ? 'opportunity' : 'opportunities'}`
-          : 'Scan completed - no crypto setups found at this time',
+        message: 'Crypto scan started in background (rate-limited to 8 calls/min)',
+        scanStatus: 'running',
         usageStats: usageStats ? {
           requestsLimitPerMinute: usageStats.requestsLimitPerMinute,
           requestsLimitPerDay: usageStats.requestsLimitPerDay,
