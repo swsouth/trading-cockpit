@@ -26,7 +26,7 @@ const DEFAULT_CONFIG: CryptoScanConfig = {
   timeframe: '5min',           // 5-minute bars
   lookbackBars: 60,            // 60 bars = 5 hours of data
   expirationMinutes: 30,       // Setups expire in 30 min
-  minScore: 0,                 // Show ALL opportunities - let user decide
+  minScore: 50,                // Minimum score of 50 (medium quality setups)
 };
 
 /**
@@ -146,6 +146,37 @@ async function analyzeCrypto(
 }
 
 /**
+ * Clean up expired crypto opportunities (standalone function)
+ */
+async function cleanupExpiredOpportunities(): Promise<number> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('   ⚠️  Supabase config missing - skipping cleanup');
+    return 0;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const now = new Date().toISOString();
+
+  const { error, count } = await supabase
+    .from('intraday_opportunities')
+    .update({ status: 'expired' })
+    .lt('expires_at', now)
+    .eq('status', 'active')
+    .eq('asset_type', 'crypto')
+    .select('*', { count: 'exact', head: true });
+
+  if (error) {
+    console.error('   ⚠️  Error cleaning up expired opportunities:', error);
+    return 0;
+  }
+
+  return count || 0;
+}
+
+/**
  * Store crypto opportunities in database
  */
 async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<void> {
@@ -176,17 +207,19 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
 
   // First, mark all existing crypto opportunities as expired (cleanup)
   console.log('   🧹 Marking expired crypto opportunities...');
-  const { error: expireError } = await supabase
+  const now = new Date().toISOString();
+  const { error: expireError, count: expiredCount } = await supabase
     .from('intraday_opportunities')
     .update({ status: 'expired' })
-    .lt('expires_at', new Date().toISOString())
+    .lt('expires_at', now)
     .eq('status', 'active')
-    .eq('asset_type', 'crypto');
+    .eq('asset_type', 'crypto')
+    .select('*', { count: 'exact', head: true });
 
   if (expireError) {
     console.error('   ⚠️  Error marking expired opportunities:', expireError);
   } else {
-    console.log('   ✅ Expired crypto opportunities marked');
+    console.log(`   ✅ Marked ${expiredCount || 0} expired crypto opportunities`);
   }
 
   // Get first user from database (for single-user MVP)
@@ -451,6 +484,12 @@ export async function runCryptoScan(): Promise<number> {
     // Store in database
     await storeOpportunities(opportunities);
   }
+
+  // Always clean up expired opportunities (even when no new ones found)
+  console.log('');
+  console.log('🧹 Cleaning up expired opportunities...');
+  const expiredCount = await cleanupExpiredOpportunities();
+  console.log(`   ✅ Marked ${expiredCount} expired opportunities`);
 
   console.log('');
   console.log(`✅ Scan completed: ${new Date().toLocaleString()}`);
