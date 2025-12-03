@@ -188,6 +188,56 @@ export async function getCryptoIntradayCandles(
 }
 
 /**
+ * Batch fetch intraday candles for multiple cryptos with rate limiting
+ * Respects Twelve Data API limits: 8 calls/min (free tier)
+ *
+ * @param symbols - Array of crypto symbols
+ * @param timeframe - Bar interval: '1min', '5min', '15min', etc.
+ * @param outputsize - Number of bars per symbol
+ * @returns Map of symbol to candles
+ */
+export async function batchGetCryptoIntradayCandles(
+  symbols: string[],
+  timeframe: '1min' | '5min' | '15min' | '30min' | '1h' = '5min',
+  outputsize: number = 60
+): Promise<Map<string, Candle[]>> {
+  const results = new Map<string, Candle[]>();
+
+  console.log(`📊 Batch fetching ${symbols.length} cryptos (${timeframe} bars)...`);
+
+  // Twelve Data rate limit: 8 calls/min (free tier)
+  const batchSize = 8;
+  const delayBetweenBatches = 60000; // 1 minute
+
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+
+    console.log(`⏳ Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(symbols.length / batchSize)}...`);
+
+    // Process batch in parallel
+    const promises = batch.map(async (symbol) => {
+      try {
+        const candles = await getCryptoIntradayCandles(symbol, timeframe, outputsize);
+        results.set(symbol, candles);
+      } catch (error) {
+        console.warn(`⚠️ Skipping ${symbol} - fetch failed:`, error);
+      }
+    });
+
+    await Promise.all(promises);
+
+    // Delay between batches (except for last batch)
+    if (i + batchSize < symbols.length) {
+      console.log(`⏸️  Rate limit delay: waiting 60s before next batch...`);
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    }
+  }
+
+  console.log(`✅ Batch complete: ${results.size}/${symbols.length} successful`);
+  return results;
+}
+
+/**
  * Get current crypto price (last close from most recent bar)
  *
  * @param symbol - Crypto symbol (BTC, ETH, etc.)

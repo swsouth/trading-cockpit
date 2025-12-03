@@ -5,7 +5,7 @@
  * Exported function for use in API routes and CLI scripts
  */
 
-import { getCryptoIntradayCandles, getCryptoMarketStatus } from '@/lib/twelveDataCrypto';
+import { batchGetCryptoIntradayCandles, getCryptoMarketStatus } from '@/lib/twelveDataCrypto';
 import { detectChannel } from '@/lib/analysis';
 import { calculateIntradayOpportunityScore } from '@/lib/scoring';
 import { generateTradeRecommendation } from '@/lib/tradeCalculator';
@@ -54,22 +54,20 @@ interface CryptoOpportunity {
 }
 
 /**
- * Analyze a single crypto for intraday opportunities
+ * Analyze a single crypto for intraday opportunities (using pre-fetched candles)
  */
 async function analyzeCrypto(
   symbol: string,
+  candles: Candle[],
   config: CryptoScanConfig
 ): Promise<CryptoOpportunity | null> {
   try {
-    // Fetch intraday candles from Twelve Data
-    const candles = await getCryptoIntradayCandles(symbol, config.timeframe, config.lookbackBars);
-
     if (!candles || candles.length < 20) {
       console.log(`   ⚠️  ${symbol}: Insufficient data (${candles?.length || 0} bars)`);
       return null;
     }
 
-    console.log(`   ✓ ${symbol}: Fetched ${candles.length} bars`);
+    console.log(`   ✓ ${symbol}: Analyzing ${candles.length} bars`);
 
     // Detect channel
     const channel = detectChannel(candles);
@@ -399,13 +397,35 @@ export async function runCryptoScan(): Promise<number> {
   console.log(`\n🎯 Scanning ${cryptoSymbols.length} cryptocurrencies...`);
   console.log('');
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FETCH ALL CANDLE DATA FIRST (with rate limiting built-in)
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`\n🔄 Fetching ${DEFAULT_CONFIG.timeframe} candles for ${cryptoSymbols.length} cryptos (rate-limited)...`);
+  const candleDataMap = await batchGetCryptoIntradayCandles(
+    cryptoSymbols,
+    DEFAULT_CONFIG.timeframe,
+    DEFAULT_CONFIG.lookbackBars
+  );
+  console.log(`✅ Fetched candles for ${candleDataMap.size}/${cryptoSymbols.length} cryptos\n`);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ANALYZE ALL CRYPTOS (no API calls, just computation)
+  // ═══════════════════════════════════════════════════════════════════
   const opportunities: CryptoOpportunity[] = [];
 
   for (const symbol of cryptoSymbols) {
     const tier = getTierForSymbol(symbol);
+    const candles = candleDataMap.get(symbol);
+
+    if (!candles) {
+      console.log(`⚠️  ${symbol} (Tier ${tier}): No candle data available`);
+      console.log('');
+      continue;
+    }
+
     console.log(`Analyzing ${symbol} (Tier ${tier})...`);
 
-    const opportunity = await analyzeCrypto(symbol, DEFAULT_CONFIG);
+    const opportunity = await analyzeCrypto(symbol, candles, DEFAULT_CONFIG);
 
     if (opportunity) {
       opportunities.push(opportunity);
