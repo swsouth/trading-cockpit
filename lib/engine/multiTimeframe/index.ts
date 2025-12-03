@@ -89,12 +89,17 @@ export function analyzeMultipleTimeframes(
 ): MultiTimeframeAnalysis {
   // Default: No higher timeframe data available
   if (!weeklyCandles || weeklyCandles.length < 20) {
+    console.log('[MTF] No higher timeframe data (weeklyCandles missing or <20 bars)');
     return createDefaultAnalysis(dailyCandles, currentPrice);
   }
+
+  console.log(`[MTF] Starting multi-timeframe analysis: ${dailyCandles.length} daily bars, ${weeklyCandles.length} weekly bars`);
 
   // Analyze each timeframe
   const weeklyData = analyzeTimeframe('weekly', weeklyCandles);
   const dailyData = analyzeTimeframe('daily', dailyCandles);
+
+  console.log(`[MTF] Weekly trend: ${weeklyData.trend}, Daily trend: ${dailyData.trend}`);
 
   // Determine trend alignment
   const trendAlignment = getTrendAlignment(weeklyData.trend, dailyData.trend);

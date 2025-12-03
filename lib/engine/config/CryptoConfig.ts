@@ -50,7 +50,7 @@ export const CRYPTO_CONFIG: AnalysisConfig = {
 export const CRYPTO_INTRADAY_CONFIG: AnalysisConfig = {
   ...CRYPTO_CONFIG,
   timeframe: 'intraday',
-  minScore: 50,  // Higher threshold for crypto intraday (very noisy)
+  minScore: 30,  // TESTING: Lowered from 50 to see MTF-adjusted signals
 
   // Even tighter parameters for crypto intraday
   channel: {

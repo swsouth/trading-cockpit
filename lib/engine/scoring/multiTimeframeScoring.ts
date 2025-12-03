@@ -37,6 +37,8 @@ export function adjustScoreForMTF(
   mtfAnalysis: MultiTimeframeAnalysis,
   currentPrice: number
 ): MTFScoreAdjustment {
+  console.log(`[MTF-Scoring] Base score: ${baseScore}, Alignment: ${mtfAnalysis.trendAlignment}, Higher TF: ${mtfAnalysis.higherTimeframeTrend}, Strength: ${mtfAnalysis.trendStrength}`);
+
   const adjustments = {
     trendAlignment: 0,
     confluence: 0,
@@ -46,8 +48,12 @@ export function adjustScoreForMTF(
   // 1. Trend Alignment Adjustment (±15 points)
   if (mtfAnalysis.trendAlignment === 'aligned') {
     adjustments.trendAlignment = 15 * mtfAnalysis.trendStrength;
+    console.log(`[MTF-Scoring] Aligned trend bonus: +${adjustments.trendAlignment.toFixed(1)}`);
   } else if (mtfAnalysis.trendAlignment === 'divergent') {
     adjustments.trendAlignment = -15 * mtfAnalysis.trendStrength;
+    console.log(`[MTF-Scoring] Divergent trend penalty: ${adjustments.trendAlignment.toFixed(1)}`);
+  } else {
+    console.log(`[MTF-Scoring] Neutral trend: no adjustment`);
   }
 
   // 2. Confluence Zone Adjustment (+10 points max)
