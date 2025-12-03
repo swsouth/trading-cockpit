@@ -10,7 +10,7 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { batchGetCrypto15MinData, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
+import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
 import * as analysis from '../../lib/analysis';
 import * as scoring from '../../lib/scoring';
 import * as tradeCalculator from '../../lib/tradeCalculator';
@@ -43,11 +43,21 @@ interface CryptoAnalysisResult {
 }
 
 /**
- * Analyze single crypto with 15-min bars (using pre-fetched candles)
+ * Analyze single crypto with MULTI-TIMEFRAME analysis (15-min + 1H bars)
+ *
+ * MTF Strategy for Crypto Intraday:
+ * - 1H bars: Identify trend direction (bullish/bearish/sideways)
+ * - 15-min bars: Detect entry patterns and precise timing
+ * - Aligned trends get +15% score boost
+ * - Divergent trends get -15% score penalty
  */
-async function analyzeCrypto(symbol: string, candles: Candle[]): Promise<CryptoAnalysisResult> {
+async function analyzeCrypto(
+  symbol: string,
+  candles15m: Candle[],
+  candles1h: Candle[]
+): Promise<CryptoAnalysisResult> {
   try {
-    if (!candles || candles.length < 20) {
+    if (!candles15m || candles15m.length < 20) {
       return {
         symbol,
         success: false,
@@ -55,12 +65,20 @@ async function analyzeCrypto(symbol: string, candles: Candle[]): Promise<CryptoA
       };
     }
 
-    console.log(`📊 Analyzing ${symbol} (${candles.length} 15-min bars)...`);
+    if (!candles1h || candles1h.length < 20) {
+      return {
+        symbol,
+        success: false,
+        error: 'Insufficient 1H bars (need at least 20 for trend analysis)',
+      };
+    }
 
-    const latestPrice = candles[candles.length - 1].close;
+    console.log(`📊 Analyzing ${symbol} (${candles15m.length} 15-min bars, ${candles1h.length} 1H bars - MTF)...`);
+
+    const latestPrice = candles15m[candles15m.length - 1].close;
 
     // ═══════════════════════════════════════════════════════════════════
-    // NEW IMPLEMENTATION: Use AnalysisEngine (Phase 1 Engine Integration)
+    // PHASE 2: Multi-Timeframe Analysis (15m + 1H)
     // ═══════════════════════════════════════════════════════════════════
     const { AnalysisEngine } = await import('../../lib/engine');
 
@@ -70,10 +88,11 @@ async function analyzeCrypto(symbol: string, candles: Candle[]): Promise<CryptoA
       timeframe: 'intraday',
     });
 
-    // Run analysis through unified 8-stage pipeline
+    // Run analysis with BOTH timeframes (MTF-enabled)
     const signal = await engine.analyzeAsset({
       symbol: symbol.split('/')[0], // BTC/USD → BTC
-      candles,
+      candles: candles15m,           // Trading timeframe (entry timing)
+      weeklyCandles: candles1h,      // Higher timeframe (trend direction)
       currentPrice: latestPrice,
     });
 
@@ -205,26 +224,27 @@ export async function runIntradayCryptoScan() {
   let errorCount = 0;
 
   // ═══════════════════════════════════════════════════════════════════
-  // FETCH ALL CANDLE DATA FIRST (with rate limiting built-in)
+  // FETCH MULTI-TIMEFRAME DATA (15m + 1H for MTF analysis)
   // ═══════════════════════════════════════════════════════════════════
-  console.log(`\n🔄 Fetching 15-min candles for ${CRYPTO_UNIVERSE.length} cryptos (rate-limited)...`);
-  const candleDataMap = await batchGetCrypto15MinData(CRYPTO_UNIVERSE, 24);
-  console.log(`✅ Fetched candles for ${candleDataMap.size}/${CRYPTO_UNIVERSE.length} cryptos\n`);
+  console.log(`\n🔄 Fetching MULTI-TIMEFRAME data for ${CRYPTO_UNIVERSE.length} cryptos (15m + 1H)...`);
+  console.log(`   📊 This enables trend alignment detection for higher win rates`);
+  const mtfDataMap = await batchGetCryptoMultiTimeframe(CRYPTO_UNIVERSE);
+  console.log(`✅ Fetched MTF data for ${mtfDataMap.size}/${CRYPTO_UNIVERSE.length} cryptos\n`);
 
   // ═══════════════════════════════════════════════════════════════════
-  // ANALYZE ALL CRYPTOS (no API calls, just computation)
+  // ANALYZE ALL CRYPTOS WITH MTF (no more API calls, just computation)
   // ═══════════════════════════════════════════════════════════════════
   for (const symbol of CRYPTO_UNIVERSE) {
-    const candles = candleDataMap.get(symbol);
+    const mtfData = mtfDataMap.get(symbol);
 
-    if (!candles) {
+    if (!mtfData) {
       errorCount++;
-      console.log(`⚠️  ${symbol}: No candle data available`);
+      console.log(`⚠️  ${symbol}: No MTF data available`);
       continue;
     }
 
     try {
-      const result = await analyzeCrypto(symbol, candles);
+      const result = await analyzeCrypto(symbol, mtfData.candles15m, mtfData.candles1h);
 
       if (result.success && result.recommendation) {
         recommendations.push(result.recommendation);
