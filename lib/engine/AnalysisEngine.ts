@@ -464,8 +464,9 @@ export class AnalysisEngine {
       ? (target - entry) / (entry - stopLoss)
       : (entry - target) / (stopLoss - entry);
 
-    if (riskReward < 1.5) {
-      console.log(`[SETUP REJECTED] R:R ${riskReward.toFixed(2)} below minimum 1.5`);
+    const minRR = this.config.risk.minRiskReward;
+    if (riskReward < minRR) {
+      console.log(`[SETUP REJECTED] R:R ${riskReward.toFixed(2)} below minimum ${minRR.toFixed(1)}`);
       return null; // R:R too low
     }
 

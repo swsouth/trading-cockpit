@@ -61,6 +61,7 @@ export const CRYPTO_INTRADAY_CONFIG: AnalysisConfig = {
   risk: {
     ...CRYPTO_CONFIG.risk,
     maxStopLoss: 0.15,      // 15% max stop for intraday (tighter than daily)
+    minRiskReward: 1.2,     // TESTING: Relaxed from 2.0 to allow tighter intraday setups
   },
 
   filters: {
