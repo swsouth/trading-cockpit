@@ -229,6 +229,83 @@ export function analyzeIntradayVolume(candles: Candle[]): VolumeAnalysis {
 }
 
 /**
+ * Detect extreme volume spikes (breakout detection)
+ *
+ * Checks if current volume is 2x-3x+ above recent average
+ * Used for early breakout detection (like AVAX surge)
+ *
+ * @param candles - Array of intraday candles
+ * @param lookbackBars - Number of bars to compare against (default: 20)
+ * @returns Spike detection result
+ */
+export function detectVolumeSpike(
+  candles: Candle[],
+  lookbackBars: number = 20
+): {
+  hasSpike: boolean;
+  spikeMultiple: number;
+  currentVolume: number;
+  avgVolume: number;
+  description: string;
+} {
+  if (candles.length < lookbackBars + 1) {
+    return {
+      hasSpike: false,
+      spikeMultiple: 1,
+      currentVolume: 0,
+      avgVolume: 0,
+      description: 'Insufficient data',
+    };
+  }
+
+  const currentCandle = candles[candles.length - 1];
+  const currentVolume = currentCandle.volume || 0;
+
+  // Calculate average volume of previous bars (excluding current)
+  const recentCandles = candles.slice(-(lookbackBars + 1), -1);
+  const validVolumes = recentCandles.filter(c => (c.volume || 0) > 0);
+
+  if (validVolumes.length < 5) {
+    return {
+      hasSpike: false,
+      spikeMultiple: 1,
+      currentVolume,
+      avgVolume: 0,
+      description: 'Insufficient volume data',
+    };
+  }
+
+  const avgVolume = validVolumes.reduce((sum, c) => sum + (c.volume || 0), 0) / validVolumes.length;
+  const spikeMultiple = avgVolume > 0 ? currentVolume / avgVolume : 1;
+
+  // Classify spike intensity
+  let description: string;
+  let hasSpike: boolean;
+
+  if (spikeMultiple >= 3.0) {
+    hasSpike = true;
+    description = `EXTREME SPIKE: ${spikeMultiple.toFixed(1)}x average volume (BREAKOUT!)`;
+  } else if (spikeMultiple >= 2.0) {
+    hasSpike = true;
+    description = `STRONG SPIKE: ${spikeMultiple.toFixed(1)}x average volume (High momentum)`;
+  } else if (spikeMultiple >= 1.5) {
+    hasSpike = true;
+    description = `Volume spike: ${spikeMultiple.toFixed(1)}x average (Above normal)`;
+  } else {
+    hasSpike = false;
+    description = `Normal volume: ${spikeMultiple.toFixed(1)}x average`;
+  }
+
+  return {
+    hasSpike,
+    spikeMultiple,
+    currentVolume,
+    avgVolume,
+    description,
+  };
+}
+
+/**
  * Calculate channel slope (rate of change)
  * @param candles - Array of candles
  * @param support - Support level

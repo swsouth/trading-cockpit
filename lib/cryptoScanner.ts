@@ -79,10 +79,12 @@ async function analyzeCrypto(
     // Analyze volume and absorption (for high confidence determination)
     const { analyzeVolume } = await import('@/lib/scoring');
     const { detectAbsorption } = await import('@/lib/orderflow');
+    const { detectVolumeSpike } = await import('@/lib/scoring/indicators');
     const volume = analyzeVolume(candles);
     const absorption = detectAbsorption(candles, volume);
+    const volumeSpike = detectVolumeSpike(candles, 20);
 
-    console.log(`   ✓ ${symbol}: Channel: ${channel.hasChannel ? 'YES' : 'NO'}, Pattern: ${pattern.mainPattern}`);
+    console.log(`   ✓ ${symbol}: Channel: ${channel.hasChannel ? 'YES' : 'NO'}, Pattern: ${pattern.mainPattern}, ${volumeSpike.description}`);
 
     // Generate trade recommendation (correct signature with volume and absorption)
     const recommendation = generateTradeRecommendation({
@@ -408,8 +410,8 @@ export async function runCryptoScan(): Promise<number> {
 
   // Check each tier asynchronously
   const [canTier1, canTier2, canTier3, canTier4] = await Promise.all([
-    canScanTier(1, 5),   // Tier 1: every 5 minutes
-    canScanTier(2, 10),  // Tier 2: every 10 minutes
+    canScanTier(1, 2),   // Tier 1: every 2 minutes (FAST - catch breakouts early)
+    canScanTier(2, 5),   // Tier 2: every 5 minutes (was 10 - increased frequency)
     canScanTier(3, 15),  // Tier 3: every 15 minutes
     canScanTier(4, 30),  // Tier 4: every 30 minutes
   ]);
@@ -422,11 +424,11 @@ export async function runCryptoScan(): Promise<number> {
   const cryptoSymbols = [...tier1Coins, ...tier2Coins, ...tier3Coins, ...tier4Coins];
 
   if (tier1Coins.length > 0) {
-    console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 5 min)`);
+    console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 2 min) - FAST TRACKING`);
     await recordScan(1);
   }
   if (tier2Coins.length > 0) {
-    console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 10 min)`);
+    console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 5 min)`);
     await recordScan(2);
   }
   if (tier3Coins.length > 0) {
