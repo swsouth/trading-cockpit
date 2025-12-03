@@ -26,7 +26,7 @@ const DEFAULT_CONFIG: CryptoScanConfig = {
   timeframe: '5min',           // 5-minute bars
   lookbackBars: 60,            // 60 bars = 5 hours of data
   expirationMinutes: 30,       // Setups expire in 30 min
-  minScore: 50,                // Minimum score of 50 (medium quality setups)
+  minScore: 45,                // Minimum score of 45 (low-medium quality setups, filters out weakest)
 };
 
 /**
@@ -478,7 +478,13 @@ export async function runCryptoScan(): Promise<number> {
     const opportunity = await analyzeCrypto(symbol, candles, DEFAULT_CONFIG);
 
     if (opportunity) {
-      opportunities.push(opportunity);
+      // Apply minimum score filter
+      if (opportunity.opportunity_score >= DEFAULT_CONFIG.minScore) {
+        opportunities.push(opportunity);
+        console.log(`   ✅ Added to opportunities (score: ${opportunity.opportunity_score} >= ${DEFAULT_CONFIG.minScore})`);
+      } else {
+        console.log(`   ⚠️  Score too low (${opportunity.opportunity_score} < ${DEFAULT_CONFIG.minScore}) - filtered out`);
+      }
     }
 
     console.log('');
