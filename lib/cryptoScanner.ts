@@ -1,524 +1,264 @@
 /**
  * Crypto Intraday Scanner (Library Version)
  *
- * Scans cryptocurrencies for intraday trade opportunities using 5-min bars
- * Exported function for use in API routes and CLI scripts
+ * Scans cryptocurrencies for intraday trade opportunities using 15-min bars
+ * Exported function for use in API routes
+ *
+ * DATA SOURCE: CoinAPI (PRIMARY - ACTIVE with $30 credits)
+ * Uses date-bounded queries for 10 credit cap optimization
+ * Cost: ~20 credits per crypto (15m + 1H data) = 300 credits per scan
  */
 
-import { batchGetCryptoIntradayCandles, getCryptoMarketStatus } from '@/lib/twelveDataCrypto';
-import { detectChannel } from '@/lib/analysis';
-import { calculateIntradayOpportunityScore } from '@/lib/scoring';
-import { generateTradeRecommendation } from '@/lib/tradeCalculator';
+import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '@/lib/cryptoData/coinApiAdapter';
 import { Candle } from '@/lib/types';
 import { createClient } from '@supabase/supabase-js';
 
-/**
- * Crypto intraday scanner configuration
- */
-interface CryptoScanConfig {
-  timeframe: '1min' | '5min' | '15min';
-  lookbackBars: number;        // Number of bars to analyze
-  expirationMinutes: number;   // How long setup stays valid
-  minScore: number;            // Minimum score to save
-}
+// Top crypto for day trading (high volume, good liquidity)
+const CRYPTO_UNIVERSE = [
+  'BTC/USD',
+  'ETH/USD',
+  'SOL/USD',
+  'BNB/USD',
+  'XRP/USD',
+  'ADA/USD',
+  'AVAX/USD',
+  'DOGE/USD',
+  'DOT/USD',
+  'MATIC/USD',
+  'LINK/USD',
+  'UNI/USD',
+  'ATOM/USD',
+  'LTC/USD',
+  'NEAR/USD',
+];
 
-const DEFAULT_CONFIG: CryptoScanConfig = {
-  timeframe: '5min',           // 5-minute bars
-  lookbackBars: 60,            // 60 bars = 5 hours of data
-  expirationMinutes: 30,       // Setups expire in 30 min
-  minScore: 45,                // Minimum score of 45 (low-medium quality setups, filters out weakest)
-};
-
-/**
- * Crypto opportunity result
- */
-interface CryptoOpportunity {
+interface CryptoAnalysisResult {
   symbol: string;
-  timeframe: string;
-  recommendation_type: 'long' | 'short';
-  entry_price: number;
-  target_price: number;
-  stop_loss: number;
-  opportunity_score: number;
-  confidence_level: 'high' | 'medium' | 'low';
-  rationale: string;
-  current_price: number;
-  expires_at: string;
-  scan_timestamp: string;
-  asset_type: 'crypto';
-
-  // Additional intraday context
-  channel_status: string | null;
-  pattern_detected: string | null;
-  rsi: number | null;
+  success: boolean;
+  recommendation?: any; // Database recommendation object
+  error?: string;
 }
 
 /**
- * Analyze a single crypto for intraday opportunities (using pre-fetched candles)
+ * Analyze single crypto with MULTI-TIMEFRAME analysis (15-min + 1H bars)
  */
 async function analyzeCrypto(
   symbol: string,
-  candles: Candle[],
-  config: CryptoScanConfig
-): Promise<CryptoOpportunity | null> {
+  candles15m: Candle[],
+  candles1h: Candle[]
+): Promise<CryptoAnalysisResult> {
   try {
-    if (!candles || candles.length < 20) {
-      console.log(`   ⚠️  ${symbol}: Insufficient data (${candles?.length || 0} bars)`);
-      return null;
+    if (!candles15m || candles15m.length < 20) {
+      return {
+        symbol,
+        success: false,
+        error: 'Insufficient 15-min bars (need at least 20)',
+      };
     }
 
-    console.log(`   ✓ ${symbol}: Analyzing ${candles.length} bars`);
+    if (!candles1h || candles1h.length < 20) {
+      return {
+        symbol,
+        success: false,
+        error: 'Insufficient 1H bars (need at least 20 for trend analysis)',
+      };
+    }
 
-    // Detect channel
-    const channel = detectChannel(candles);
+    console.log(`📊 Analyzing ${symbol} (${candles15m.length} 15-min bars, ${candles1h.length} 1H bars - MTF)...`);
 
-    // Detect patterns
-    const { detectPatterns } = await import('@/lib/analysis');
-    const pattern = detectPatterns(candles);
+    const latestPrice = candles15m[candles15m.length - 1].close;
 
-    // Analyze volume and absorption (for high confidence determination)
-    const { analyzeVolume } = await import('@/lib/scoring');
-    const { detectAbsorption } = await import('@/lib/orderflow');
-    const { detectVolumeSpike } = await import('@/lib/scoring/indicators');
-    const volume = analyzeVolume(candles);
-    const absorption = detectAbsorption(candles, volume);
-    const volumeSpike = detectVolumeSpike(candles, 20);
+    // Use Phase 2 Analysis Engine with multi-timeframe support
+    const { AnalysisEngine } = await import('@/lib/engine');
 
-    console.log(`   ✓ ${symbol}: Channel: ${channel.hasChannel ? 'YES' : 'NO'}, Pattern: ${pattern.mainPattern}, ${volumeSpike.description}`);
-
-    // Generate trade recommendation (correct signature with volume and absorption)
-    const recommendation = generateTradeRecommendation({
-      symbol,
-      candles,
-      channel,
-      pattern,
-      volume,
-      absorption,
+    // Initialize engine with crypto intraday configuration
+    const engine = new AnalysisEngine({
+      assetType: 'crypto',
+      timeframe: 'intraday',
     });
 
-    if (!recommendation) {
-      console.log(`   ⚠️  ${symbol}: No actionable setup`);
-      return null;
+    // Run analysis with BOTH timeframes (MTF-enabled)
+    const signal = await engine.analyzeAsset({
+      symbol: symbol.split('/')[0], // BTC/USD → BTC
+      candles: candles15m,           // Trading timeframe (entry timing)
+      weeklyCandles: candles1h,      // Higher timeframe (trend direction)
+      currentPrice: latestPrice,
+    });
+
+    // No signal = no actionable setup
+    if (!signal) {
+      return { symbol, success: false, error: 'No actionable intraday setup' };
     }
 
-    // Calculate opportunity score (intraday version)
-    const scoring = calculateIntradayOpportunityScore(
-      candles,
-      channel,
-      pattern,
-      recommendation.entry,
-      recommendation.target,
-      recommendation.stopLoss
-    );
-
-    // Current price (last close)
-    const currentPrice = candles[candles.length - 1].close;
-
-    // Expiration time (current time + expiration minutes)
-    const expiresAt = new Date(Date.now() + config.expirationMinutes * 60 * 1000).toISOString();
-
-    const opportunity: CryptoOpportunity = {
-      symbol,
-      timeframe: config.timeframe,
-      recommendation_type: recommendation.setup.type as 'long' | 'short',
-      entry_price: recommendation.entry,
-      target_price: recommendation.target,
-      stop_loss: recommendation.stopLoss,
-      opportunity_score: scoring.totalScore,
-      confidence_level: scoring.confidenceLevel,
-      rationale: recommendation.rationale,
-      current_price: currentPrice,
-      expires_at: expiresAt,
-      scan_timestamp: new Date().toISOString(),
-      asset_type: 'crypto',
-
-      // Technical details
-      channel_status: channel.status,
-      pattern_detected: pattern.mainPattern,
-      rsi: scoring.components.momentumScore || null,
+    // Build recommendation for database (intraday_opportunities table)
+    const recommendation = {
+      symbol: symbol.split('/')[0], // BTC/USD → BTC
+      scan_date: new Date().toISOString(),
+      recommendation_type: signal.recommendation || 'none',
+      entry_price: signal.entry,
+      target_price: signal.target,
+      stop_loss: signal.stopLoss,
+      risk_reward_ratio: signal.riskReward,
+      opportunity_score: Math.round(signal.score), // Round to integer for database
+      confidence_level: signal.confidence,
+      setup_type: `${signal.recommendation}_${signal.confidence}`,
+      pattern_detected: signal.mainPattern || 'none',
+      channel_status: signal.metadata.channelStatus || null,
+      trend: signal.regime === 'trending_bullish' ? 'up' : signal.regime === 'trending_bearish' ? 'down' : 'sideways',
+      current_price: latestPrice,
+      rationale: signal.rationale,
+      timeframe: '15min',
+      valid_until: getNext15MinBarClose(),
     };
 
-    console.log(`   ✅ ${symbol}: Found ${opportunity.recommendation_type.toUpperCase()} setup (score: ${scoring.totalScore})`);
+    console.log(`✅ ${symbol}: ${signal.recommendation}_${signal.confidence} (score: ${signal.score})`);
+    return { symbol, success: true, recommendation };
 
-    return opportunity;
   } catch (error) {
-    console.error(`   ❌ ${symbol}: Error analyzing crypto:`, error);
-    return null;
+    console.error(`❌ Error analyzing ${symbol}:`, error);
+    return {
+      symbol,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
   }
 }
 
 /**
- * Clean up expired crypto opportunities (standalone function)
- */
-async function cleanupExpiredOpportunities(): Promise<number> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.warn('   ⚠️  Supabase config missing - skipping cleanup');
-    return 0;
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const now = new Date().toISOString();
-
-  // Count expired opportunities first
-  const { count: beforeCount } = await supabase
-    .from('intraday_opportunities')
-    .select('*', { count: 'exact', head: true })
-    .lt('expires_at', now)
-    .eq('status', 'active')
-    .eq('asset_type', 'crypto');
-
-  // Update them to expired
-  const { error } = await supabase
-    .from('intraday_opportunities')
-    .update({ status: 'expired' })
-    .lt('expires_at', now)
-    .eq('status', 'active')
-    .eq('asset_type', 'crypto');
-
-  if (error) {
-    console.error('   ⚠️  Error cleaning up expired opportunities:', error);
-    return 0;
-  }
-
-  return beforeCount || 0;
-}
-
-/**
- * Store crypto opportunities in database
- */
-async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<void> {
-  console.log(`\n💾 storeOpportunities() called with ${opportunities.length} crypto opportunities`);
-
-  if (opportunities.length === 0) {
-    console.log('   ⚠️  No opportunities to store (empty array)');
-    return;
-  }
-
-  // Log each opportunity before processing
-  opportunities.forEach((opp, index) => {
-    console.log(`   ${index + 1}. ${opp.symbol} ${opp.recommendation_type.toUpperCase()} @ $${opp.entry_price.toFixed(2)} (Score: ${opp.opportunity_score})`);
-  });
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('   ❌ Supabase configuration missing!');
-    console.error(`      NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? 'SET' : 'MISSING'}`);
-    console.error(`      SUPABASE_SERVICE_ROLE_KEY: ${supabaseKey ? 'SET' : 'MISSING'}`);
-    throw new Error('Supabase configuration missing');
-  }
-
-  console.log('   ✅ Supabase credentials verified');
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  // First, mark all existing crypto opportunities as expired (cleanup)
-  console.log('   🧹 Marking expired crypto opportunities...');
-  const now = new Date().toISOString();
-
-  // Count expired opportunities first
-  const { count: expiredCount } = await supabase
-    .from('intraday_opportunities')
-    .select('*', { count: 'exact', head: true })
-    .lt('expires_at', now)
-    .eq('status', 'active')
-    .eq('asset_type', 'crypto');
-
-  // Update them to expired
-  const { error: expireError } = await supabase
-    .from('intraday_opportunities')
-    .update({ status: 'expired' })
-    .lt('expires_at', now)
-    .eq('status', 'active')
-    .eq('asset_type', 'crypto');
-
-  if (expireError) {
-    console.error('   ⚠️  Error marking expired opportunities:', expireError);
-  } else {
-    console.log(`   ✅ Marked ${expiredCount || 0} expired crypto opportunities`);
-  }
-
-  // Get first user from database (for single-user MVP)
-  // TODO: When multi-user, scan should create opportunities for all users
-  console.log('   👤 Fetching user ID...');
-  const { data: users, error: userError } = await supabase.auth.admin.listUsers();
-
-  if (userError) {
-    console.error('   ❌ Error fetching users:', userError);
-    return;
-  }
-
-  const userId = users?.users?.[0]?.id;
-
-  if (!userId) {
-    console.error('   ❌ No user found in database - cannot store opportunities');
-    console.error(`      Users data:`, users);
-    return;
-  }
-
-  console.log(`   ✅ User ID: ${userId}`);
-
-  // Insert new crypto opportunities
-  console.log(`   📝 Inserting ${opportunities.length} crypto records into database...`);
-
-  let successCount = 0;
-  let failCount = 0;
-
-  for (const opp of opportunities) {
-    try {
-      const record = {
-        user_id: userId,
-        symbol: opp.symbol,
-        timeframe: opp.timeframe,
-        scan_timestamp: opp.scan_timestamp,
-        recommendation_type: opp.recommendation_type,
-        entry_price: opp.entry_price,
-        target_price: opp.target_price,
-        stop_loss: opp.stop_loss,
-        opportunity_score: opp.opportunity_score,
-        confidence_level: opp.confidence_level,
-        rationale: opp.rationale,
-        current_price: opp.current_price,
-        expires_at: opp.expires_at,
-        status: 'active',
-        channel_status: opp.channel_status,
-        pattern_detected: opp.pattern_detected,
-        rsi: opp.rsi,
-        asset_type: opp.asset_type,
-      };
-
-      const { data, error } = await supabase
-        .from('intraday_opportunities')
-        .insert(record)
-        .select();
-
-      if (error) {
-        console.error(`   ❌ Failed to store ${opp.symbol}:`, error.message);
-        console.error('      Error details:', JSON.stringify(error, null, 2));
-        failCount++;
-      } else {
-        console.log(`   ✅ Stored ${opp.symbol} (ID: ${data[0]?.id})`);
-        successCount++;
-      }
-    } catch (err) {
-      console.error(`   ❌ Error storing ${opp.symbol}:`, err);
-      failCount++;
-    }
-  }
-
-  console.log(`\n   📊 Storage Summary: ${successCount} success, ${failCount} failed`);
-}
-
-/**
- * Main crypto scanner function
+ * Main crypto scanner function - called by API route
  * Returns the count of opportunities found
  */
 export async function runCryptoScan(): Promise<number> {
-  console.log('🔍 CRYPTO INTRADAY SCANNER');
-  console.log('═'.repeat(50));
-  console.log(`Started: ${new Date().toLocaleString()}`);
-  console.log(`Timeframe: ${DEFAULT_CONFIG.timeframe}`);
-  console.log(`Lookback: ${DEFAULT_CONFIG.lookbackBars} bars`);
-  console.log('');
+  console.log('\n═══════════════════════════════════════════════════════════');
+  console.log('  CRYPTO INTRADAY SCANNER (15-MIN BARS)');
+  console.log('═══════════════════════════════════════════════════════════\n');
 
-  // Check market status (always open for crypto)
-  const marketStatus = getCryptoMarketStatus();
-  console.log(`📈 Market Status: ${marketStatus.status.toUpperCase()}`);
-  console.log(`   ${marketStatus.message}`);
-  console.log('');
+  const scanTime = new Date().toISOString();
+  console.log(`Scan Time: ${scanTime}`);
+  console.log(`Universe: ${CRYPTO_UNIVERSE.length} crypto pairs\n`);
 
-  // Import tiered universe
-  const {
-    getAllCryptoSymbols,
-    getSymbolsByTier,
-    getTierForSymbol,
-    getScanInterval,
-  } = await import('@/scripts/cryptoUniverseTiered');
+  // Collect successful recommendations
+  const recommendations: any[] = [];
+  let successCount = 0;
+  let errorCount = 0;
 
-  // Determine which coins to scan based on current minute (tiered approach)
-  // UPDATED: Allow one scan per period (e.g., can scan at :53 if haven't scanned for :50 period)
-  const now = new Date();
-  const currentMinute = now.getMinutes();
+  // ═══════════════════════════════════════════════════════════════════
+  // FETCH MULTI-TIMEFRAME DATA (15m + 1H for MTF analysis)
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`\n🔄 Fetching MULTI-TIMEFRAME data for ${CRYPTO_UNIVERSE.length} cryptos (15m + 1H)...`);
+  console.log(`   📊 This enables trend alignment detection for higher win rates`);
+  const mtfDataMap = await batchGetCryptoMultiTimeframe(CRYPTO_UNIVERSE);
+  console.log(`✅ Fetched MTF data for ${mtfDataMap.size}/${CRYPTO_UNIVERSE.length} cryptos\n`);
 
-  console.log(`⏰ Current minute: ${currentMinute}`);
-  console.log('   Determining which tiers are eligible for scanning...\n');
+  // ═══════════════════════════════════════════════════════════════════
+  // ANALYZE ALL CRYPTOS WITH MTF (no more API calls, just computation)
+  // ═══════════════════════════════════════════════════════════════════
+  for (const symbol of CRYPTO_UNIVERSE) {
+    const mtfData = mtfDataMap.get(symbol);
 
-  // Helper function to check if we can scan a tier
-  // Returns true if we're in the tier's period AND haven't scanned this period yet
-  async function canScanTier(tier: number, intervalMinutes: number): Promise<boolean> {
-    // Calculate which period we're in (e.g., for 5-min intervals: 0-4, 5-9, 10-14, etc.)
-    const currentPeriod = Math.floor(currentMinute / intervalMinutes);
+    if (!mtfData) {
+      errorCount++;
+      console.log(`⚠️  ${symbol}: No MTF data available`);
+      continue;
+    }
 
-    // Get last scan time from database for this tier
+    try {
+      const result = await analyzeCrypto(symbol, mtfData.candles15m, mtfData.candles1h);
+
+      if (result.success && result.recommendation) {
+        recommendations.push(result.recommendation);
+        successCount++;
+      } else {
+        errorCount++;
+        console.log(`⚠️  ${result.symbol}: ${result.error}`);
+      }
+    } catch (error) {
+      errorCount++;
+      console.error(`❌ ${symbol}: Analysis failed:`, error);
+    }
+  }
+
+  console.log(`\n📊 Analysis complete: ${successCount} opportunities, ${errorCount} skipped`);
+
+  if (recommendations.length === 0) {
+    console.log('\n❌ No valid crypto opportunities found this scan\n');
+    return 0;
+  }
+
+  // Sort by score (highest first)
+  recommendations.sort((a, b) => b.opportunity_score - a.opportunity_score);
+
+  console.log(`\n✅ Found ${recommendations.length} intraday crypto opportunities:\n`);
+  recommendations.forEach(rec => {
+    console.log(`  ${rec.symbol}: ${rec.setup_type} (${rec.opportunity_score}/100) - Valid until ${new Date(rec.valid_until!).toLocaleTimeString()}`);
+  });
+
+  // Save to database (intraday_opportunities table - unified with stock scanner)
+  try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.warn(`   ⚠️  Tier ${tier}: Supabase config missing - allowing scan`);
-      return true; // Default to allowing scan if no DB access
+      throw new Error('Supabase credentials not configured');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if we've scanned this tier in the current period
-    const periodStartTime = new Date(now);
-    periodStartTime.setMinutes(currentPeriod * intervalMinutes, 0, 0);
+    // Delete old crypto opportunities (older than 4 hours)
+    const fourHoursAgo = new Date();
+    fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
-    const { data, error } = await supabase
-      .from('crypto_scan_history')
-      .select('scan_timestamp, tier')
-      .eq('tier', tier)
-      .gte('scan_timestamp', periodStartTime.toISOString())
-      .order('scan_timestamp', { ascending: false })
-      .limit(1);
+    const { error: deleteError } = await supabase
+      .from('intraday_opportunities')
+      .delete()
+      .eq('asset_type', 'crypto')
+      .lt('scan_timestamp', fourHoursAgo.toISOString());
 
-    if (error) {
-      console.warn(`   ⚠️  Tier ${tier}: Error checking scan history - allowing scan`, error.message);
-      return true; // Default to allowing scan on error
+    if (deleteError) {
+      console.warn('⚠️  Warning: Failed to cleanup old crypto opportunities:', deleteError);
     }
 
-    const hasScannedThisPeriod = data && data.length > 0;
+    // Map recommendations to intraday_opportunities format
+    const opportunities = recommendations.map(rec => ({
+      user_id: null, // System-generated (not user-specific)
+      symbol: rec.symbol,
+      timeframe: rec.timeframe,
+      scan_timestamp: rec.scan_date,
+      recommendation_type: rec.recommendation_type,
+      entry_price: rec.entry_price,
+      target_price: rec.target_price,
+      stop_loss: rec.stop_loss,
+      opportunity_score: rec.opportunity_score,
+      confidence_level: rec.confidence_level,
+      rationale: rec.rationale,
+      current_price: rec.current_price,
+      channel_status: rec.channel_status,
+      pattern_detected: rec.pattern_detected,
+      rsi: null, // Not calculated in current implementation
+      expires_at: rec.valid_until,
+      status: 'active',
+      asset_type: 'crypto',
+    }));
 
-    if (hasScannedThisPeriod) {
-      const lastScan = new Date(data[0].scan_timestamp);
-      const minutesAgo = Math.floor((now.getTime() - lastScan.getTime()) / 60000);
-      console.log(`   ⏸️  Tier ${tier}: Already scanned this period (${minutesAgo}m ago) - skipping`);
-      return false;
+    // Insert new opportunities
+    const { error: insertError } = await supabase
+      .from('intraday_opportunities')
+      .insert(opportunities);
+
+    if (insertError) {
+      throw insertError;
     }
 
-    console.log(`   ✅ Tier ${tier}: Eligible for scan (period ${currentPeriod})`);
-    return true;
+    console.log(`\n💾 Saved ${opportunities.length} crypto opportunities to database`);
+
+  } catch (error) {
+    console.error('\n❌ Error saving to database:', error);
+    throw error;
   }
 
-  // Record scan in history for this tier
-  async function recordScan(tier: number): Promise<void> {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  console.log('\n═══════════════════════════════════════════════════════════');
+  console.log('  INTRADAY SCAN COMPLETE');
+  console.log('═══════════════════════════════════════════════════════════\n');
 
-    if (!supabaseUrl || !supabaseKey) return;
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    await supabase.from('crypto_scan_history').insert({
-      tier,
-      scan_timestamp: now.toISOString(),
-    });
-  }
-
-  // Check each tier asynchronously
-  const [canTier1, canTier2, canTier3, canTier4] = await Promise.all([
-    canScanTier(1, 2),   // Tier 1: every 2 minutes (FAST - catch breakouts early)
-    canScanTier(2, 5),   // Tier 2: every 5 minutes (was 10 - increased frequency)
-    canScanTier(3, 15),  // Tier 3: every 15 minutes
-    canScanTier(4, 30),  // Tier 4: every 30 minutes
-  ]);
-
-  const tier1Coins = canTier1 ? getSymbolsByTier(1) : [];
-  const tier2Coins = canTier2 ? getSymbolsByTier(2) : [];
-  const tier3Coins = canTier3 ? getSymbolsByTier(3) : [];
-  const tier4Coins = canTier4 ? getSymbolsByTier(4) : [];
-
-  const cryptoSymbols = [...tier1Coins, ...tier2Coins, ...tier3Coins, ...tier4Coins];
-
-  if (tier1Coins.length > 0) {
-    console.log(`   ✓ Tier 1: ${tier1Coins.length} coins (every 2 min) - FAST TRACKING`);
-    await recordScan(1);
-  }
-  if (tier2Coins.length > 0) {
-    console.log(`   ✓ Tier 2: ${tier2Coins.length} coins (every 5 min)`);
-    await recordScan(2);
-  }
-  if (tier3Coins.length > 0) {
-    console.log(`   ✓ Tier 3: ${tier3Coins.length} coins (every 15 min)`);
-    await recordScan(3);
-  }
-  if (tier4Coins.length > 0) {
-    console.log(`   ✓ Tier 4: ${tier4Coins.length} coins (every 30 min)`);
-    await recordScan(4);
-  }
-
-  if (cryptoSymbols.length === 0) {
-    console.log('⚠️  No tiers eligible for scanning at this time');
-    console.log('   (All tiers already scanned in their current period)');
-    return 0;
-  }
-
-  console.log(`\n🎯 Scanning ${cryptoSymbols.length} cryptocurrencies...`);
-  console.log('');
-
-  // ═══════════════════════════════════════════════════════════════════
-  // FETCH ALL CANDLE DATA FIRST (with rate limiting built-in)
-  // ═══════════════════════════════════════════════════════════════════
-  console.log(`\n🔄 Fetching ${DEFAULT_CONFIG.timeframe} candles for ${cryptoSymbols.length} cryptos (rate-limited)...`);
-  const candleDataMap = await batchGetCryptoIntradayCandles(
-    cryptoSymbols,
-    DEFAULT_CONFIG.timeframe,
-    DEFAULT_CONFIG.lookbackBars
-  );
-  console.log(`✅ Fetched candles for ${candleDataMap.size}/${cryptoSymbols.length} cryptos\n`);
-
-  // ═══════════════════════════════════════════════════════════════════
-  // ANALYZE ALL CRYPTOS (no API calls, just computation)
-  // ═══════════════════════════════════════════════════════════════════
-  const opportunities: CryptoOpportunity[] = [];
-
-  for (const symbol of cryptoSymbols) {
-    const tier = getTierForSymbol(symbol);
-    const candles = candleDataMap.get(symbol);
-
-    if (!candles) {
-      console.log(`⚠️  ${symbol} (Tier ${tier}): No candle data available`);
-      console.log('');
-      continue;
-    }
-
-    console.log(`Analyzing ${symbol} (Tier ${tier})...`);
-
-    const opportunity = await analyzeCrypto(symbol, candles, DEFAULT_CONFIG);
-
-    if (opportunity) {
-      // Apply minimum score filter
-      if (opportunity.opportunity_score >= DEFAULT_CONFIG.minScore) {
-        opportunities.push(opportunity);
-        console.log(`   ✅ Added to opportunities (score: ${opportunity.opportunity_score} >= ${DEFAULT_CONFIG.minScore})`);
-      } else {
-        console.log(`   ⚠️  Score too low (${opportunity.opportunity_score} < ${DEFAULT_CONFIG.minScore}) - filtered out`);
-      }
-    }
-
-    console.log('');
-  }
-
-  // Summary
-  console.log('═'.repeat(50));
-  console.log('📊 SCAN SUMMARY');
-  console.log('═'.repeat(50));
-  console.log(`Total scanned: ${cryptoSymbols.length}`);
-  console.log(`Opportunities found: ${opportunities.length}`);
-
-  if (opportunities.length > 0) {
-    console.log('');
-    console.log('Opportunities:');
-    opportunities.forEach(opp => {
-      console.log(`  ${opp.symbol}: ${opp.recommendation_type.toUpperCase()} @ $${opp.entry_price.toFixed(2)} (score: ${opp.opportunity_score})`);
-    });
-
-    // Store in database
-    await storeOpportunities(opportunities);
-  }
-
-  // Always clean up expired opportunities (even when no new ones found)
-  console.log('');
-  console.log('🧹 Cleaning up expired opportunities...');
-  const expiredCount = await cleanupExpiredOpportunities();
-  console.log(`   ✅ Marked ${expiredCount} expired opportunities`);
-
-  console.log('');
-  console.log(`✅ Scan completed: ${new Date().toLocaleString()}`);
-  console.log('');
-
-  return opportunities.length;
+  return recommendations.length;
 }
