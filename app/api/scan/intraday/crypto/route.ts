@@ -60,20 +60,19 @@ export async function POST(request: NextRequest) {
       const { runCryptoScan } = await import('@/lib/cryptoScanner');
       console.log('✅ Crypto scanner module imported successfully');
 
-      console.log('✓ Starting crypto scan (async - will run in background)');
+      console.log('✓ Starting crypto scan (FOREGROUND - with full feedback)');
 
-      // Run scanner in background (don't await - return immediately to avoid timeout)
-      runCryptoScan().then(opportunitiesCount => {
-        console.log(`✅ Background crypto scan completed - found ${opportunitiesCount} opportunities`);
-      }).catch(error => {
-        console.error('❌ Background crypto scan error:', error);
-      });
+      // Run scanner in foreground (AWAIT - provide full feedback to user)
+      const opportunitiesCount = await runCryptoScan();
+
+      console.log(`✅ Crypto scan completed - found ${opportunitiesCount} opportunities`);
 
       return NextResponse.json({
         success: true,
         timestamp: new Date().toISOString(),
-        message: 'Crypto scan started in background using CoinAPI',
-        scanStatus: 'running',
+        message: `Crypto scan completed using CoinAPI - found ${opportunitiesCount} opportunities`,
+        scanStatus: 'completed',
+        opportunitiesFound: opportunitiesCount,
       });
     } catch (scanError) {
       console.error('❌ Crypto scanner execution error:', scanError);

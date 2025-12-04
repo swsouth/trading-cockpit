@@ -566,6 +566,20 @@ export default function DayTraderPage() {
         </div>
       </div>
 
+      {/* Stock/Crypto Tabs - MOVED TO TOP */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'stocks' | 'crypto')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="stocks" className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Stocks ({stockOpportunities.length})
+          </TabsTrigger>
+          <TabsTrigger value="crypto" className="flex items-center gap-2">
+            <Bitcoin className="h-4 w-4" />
+            Crypto ({cryptoOpportunities.length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Market Status & API Usage Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Market Status Card */}
@@ -933,29 +947,9 @@ export default function DayTraderPage() {
         </CardContent>
       </Card>
 
-      {/* Opportunities Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'stocks' | 'crypto')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="stocks" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Stocks ({stockOpportunities.length})
-          </TabsTrigger>
-          <TabsTrigger value="crypto" className="flex items-center gap-2">
-            <Bitcoin className="h-4 w-4" />
-            Crypto ({cryptoOpportunities.length})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Stocks Tab */}
-        <TabsContent value="stocks" className="space-y-4 mt-6">
-          {renderOpportunitiesList(stockOpportunities, 'stocks')}
-        </TabsContent>
-
-        {/* Crypto Tab */}
-        <TabsContent value="crypto" className="space-y-4 mt-6">
-          {renderOpportunitiesList(cryptoOpportunities, 'crypto')}
-        </TabsContent>
-      </Tabs>
+      {/* Opportunities Content (Tabs moved to top) */}
+      {activeTab === 'stocks' && renderOpportunitiesList(stockOpportunities, 'stocks')}
+      {activeTab === 'crypto' && renderOpportunitiesList(cryptoOpportunities, 'crypto')}
     </div>
   );
 
