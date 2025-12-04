@@ -459,16 +459,20 @@ export class AnalysisEngine {
       console.log(`[TARGET SHORT] Tier: $${tierTargetPrice.toFixed(2)}, Channel: $${channelTarget.toFixed(2)}, R:R: $${rrTarget.toFixed(2)} → Selected: $${target.toFixed(2)}`);
     }
 
-    // Validate setup
+    // Calculate risk/reward ratio (for display only - no longer a hard requirement)
     const riskReward = direction === 'long'
       ? (target - entry) / (entry - stopLoss)
       : (entry - target) / (stopLoss - entry);
 
-    const minRR = this.config.risk.minRiskReward;
-    if (riskReward < minRR) {
-      console.log(`[SETUP REJECTED] R:R ${riskReward.toFixed(2)} below minimum ${minRR.toFixed(1)}`);
-      return null; // R:R too low
-    }
+    // Log R:R for informational purposes (users can decide if acceptable)
+    console.log(`[R:R RATIO] ${riskReward.toFixed(2)}:1 (informational only - not a filter)`);
+
+    // REMOVED: R:R validation - let users decide their own risk tolerance
+    // const minRR = this.config.risk.minRiskReward;
+    // if (riskReward < minRR) {
+    //   console.log(`[SETUP REJECTED] R:R ${riskReward.toFixed(2)} below minimum ${minRR.toFixed(1)}`);
+    //   return null;
+    // }
 
     const riskPct = direction === 'long'
       ? ((entry - stopLoss) / entry) * 100

@@ -25,7 +25,7 @@ export const STOCK_CONFIG: AnalysisConfig = {
   // Risk management parameters
   risk: {
     maxStopLoss: 0.15,      // 15% maximum stop loss
-    minRiskReward: 2.0,     // Minimum 2:1 risk/reward ratio
+    minRiskReward: 1.5,     // Minimum 1.5:1 risk/reward ratio (relaxed from 2.0)
     maxRisk: 0.10,          // Max 10% portfolio risk per trade
   },
 
