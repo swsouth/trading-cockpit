@@ -325,6 +325,10 @@ export type TradeRecommendation = {
   vetting_green_flags: string[] | null;
   vetting_checks: any | null; // JSONB - full breakdown
 
+  // Intraday Price Tracking
+  price_change_since_scan?: number | null; // Percentage change from entry_price to current_price
+  last_price_update?: string | null; // Timestamp of last price refresh
+
   // Tracking & Lifecycle
   is_active: boolean;
   outcome: 'hit_target' | 'hit_stop' | 'expired' | 'pending' | 'invalidated' | null;
