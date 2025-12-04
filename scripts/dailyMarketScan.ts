@@ -17,12 +17,12 @@ import { Candle } from '@/lib/types';
 
 // Default configuration
 const DEFAULT_CONFIG: ScannerConfig = {
-  batchSize: 8,               // Process 8 stocks at a time (Twelve Data free tier: 8 calls/minute)
-  batchDelayMs: 65000,        // 65 second delay between batches (to respect rate limit)
+  batchSize: 30,              // Process 30 stocks at a time (Yahoo Finance: unlimited, no rate limits!)
+  batchDelayMs: 2000,         // 2 second delay between batches (minimal - just to avoid overwhelming the system)
   minScore: 30,               // Show recommendations 30+ (low confidence but actionable)
                               // UI will highlight scores <50 with red border as high-risk
   maxRecommendations: 30,     // Store top 30 recommendations
-  lookbackDays: 365,          // Use 1 year of historical data (Twelve Data supports up to 5000 data points!)
+  lookbackDays: 365,          // Use 1 year of historical data (Yahoo Finance supports unlimited!)
                               // More data = better channel detection, pattern validation, trend analysis
 };
 
@@ -99,21 +99,20 @@ async function runDailyMarketScan(config: ScannerConfig = DEFAULT_CONFIG): Promi
         r => r.success && r.recommendation && r.score
       );
 
-      // Count how many meet the quality threshold (for stats only)
-      const opportunities = successfulResults.filter(
+      // Count how many meet the quality threshold (for stats only - informational)
+      const highQuality = successfulResults.filter(
         r => r.score && r.score.totalScore >= 60
       );
-      stats.opportunities += opportunities.length;
+      stats.opportunities += highQuality.length;
 
-      // But store ALL successful scans
+      // Store ALL successful scans (regardless of score - let users decide quality)
       allResults.push(...successfulResults);
 
       // Log progress
-      const opportunitiesInBatch = opportunities.length;
-      if (opportunitiesInBatch > 0) {
-        console.log(`   ✅ Found ${opportunitiesInBatch} opportunities`);
+      if (highQuality.length > 0) {
+        console.log(`   ✅ Found ${successfulResults.length} setups (${highQuality.length} score ≥60)`);
       } else {
-        console.log(`   ℹ️  No opportunities found`);
+        console.log(`   ✅ Found ${successfulResults.length} setups (all score <60 - saved for user review)`);
       }
 
       // Update last scanned timestamp for all symbols in batch

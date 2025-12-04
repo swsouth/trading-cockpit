@@ -121,12 +121,24 @@ export async function storeRecommendations(
     return 0;
   }
 
+  // Deduplicate records by (symbol, scan_date) - keep only the latest scan result
+  // This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time" errors
+  const uniqueRecords = Array.from(
+    records.reduce((map, record) => {
+      const key = `${record.symbol}_${record.scan_date}`;
+      map.set(key, record); // Overwrites duplicates with latest
+      return map;
+    }, new Map<string, RecommendationRecord>()).values()
+  );
+
+  console.log(`   📝 Deduplicating: ${records.length} results → ${uniqueRecords.length} unique (symbol, scan_date) pairs`);
+
   // Insert in batches of 100 (recommendations accumulate throughout the week)
   const batchSize = 100;
   let inserted = 0;
 
-  for (let i = 0; i < records.length; i += batchSize) {
-    const batch = records.slice(i, i + batchSize);
+  for (let i = 0; i < uniqueRecords.length; i += batchSize) {
+    const batch = uniqueRecords.slice(i, i + batchSize);
 
     const { error } = await supabase
       .from('trade_recommendations')

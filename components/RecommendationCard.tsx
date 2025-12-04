@@ -17,6 +17,10 @@ import {
   BarChart3,
   DollarSign,
   Star,
+  Clock,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from 'lucide-react';
 import Link from 'next/link';
 import ChartModal from './ChartModal';
@@ -141,6 +145,55 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
   };
 
   const freshness = getScanFreshness();
+
+  // Calculate price change and freshness for live price updates
+  const getPriceChangeInfo = () => {
+    if (!recommendation.price_change_since_scan || !recommendation.last_price_update) {
+      return null;
+    }
+
+    const priceChange = recommendation.price_change_since_scan;
+    const isPositive = priceChange > 0;
+    const isNegative = priceChange < 0;
+    const isNeutral = Math.abs(priceChange) < 0.1;
+
+    // Check if price is moving toward target or stop
+    const movingTowardTarget = recommendation_type === 'long' ? isPositive : isNegative;
+    const movingTowardStop = recommendation_type === 'long' ? isNegative : isPositive;
+
+    // Calculate time since last update
+    const updateTime = new Date(recommendation.last_price_update);
+    const now = new Date();
+    const minutesSinceUpdate = Math.floor((now.getTime() - updateTime.getTime()) / (1000 * 60));
+
+    let freshnessLabel = 'Just now';
+    let isStale = false;
+
+    if (minutesSinceUpdate < 1) {
+      freshnessLabel = 'Just now';
+    } else if (minutesSinceUpdate < 60) {
+      freshnessLabel = `${minutesSinceUpdate}m ago`;
+      isStale = minutesSinceUpdate > 20;
+    } else {
+      const hoursSinceUpdate = Math.floor(minutesSinceUpdate / 60);
+      freshnessLabel = `${hoursSinceUpdate}h ago`;
+      isStale = true;
+    }
+
+    return {
+      priceChange,
+      isPositive,
+      isNegative,
+      isNeutral,
+      movingTowardTarget,
+      movingTowardStop,
+      freshnessLabel,
+      isStale,
+      updateTime,
+    };
+  };
+
+  const priceChangeInfo = getPriceChangeInfo();
 
   // Handle pin/unpin toggle
   const handleTogglePin = async () => {
@@ -275,6 +328,28 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
                   Current: ${current_price.toFixed(2)}
                 </div>
               )}
+              {priceChangeInfo && (
+                <div className="mt-1 flex items-center gap-1">
+                  {priceChangeInfo.movingTowardTarget && (
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 text-xs py-0 px-1">
+                      <ArrowUp className="h-3 w-3 mr-0.5" />
+                      {priceChangeInfo.priceChange >= 0 ? '+' : ''}{priceChangeInfo.priceChange.toFixed(2)}%
+                    </Badge>
+                  )}
+                  {priceChangeInfo.movingTowardStop && (
+                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300 text-xs py-0 px-1">
+                      <ArrowDown className="h-3 w-3 mr-0.5" />
+                      {priceChangeInfo.priceChange >= 0 ? '+' : ''}{priceChangeInfo.priceChange.toFixed(2)}%
+                    </Badge>
+                  )}
+                  {priceChangeInfo.isNeutral && (
+                    <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 text-xs py-0 px-1">
+                      <Minus className="h-3 w-3 mr-0.5" />
+                      {priceChangeInfo.priceChange >= 0 ? '+' : ''}{priceChangeInfo.priceChange.toFixed(2)}%
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Target */}
@@ -380,9 +455,18 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
 
         {/* Metadata */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 text-xs text-muted-foreground pt-2 border-t">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span>Scanned: {new Date(scan_date).toLocaleDateString()}</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span>Scanned: {new Date(scan_date).toLocaleDateString()}</span>
+            </div>
+            {priceChangeInfo && (
+              <div className={`flex items-center gap-1 ${priceChangeInfo.isStale ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
+                <Clock className="h-3 w-3" />
+                <span>Price: {priceChangeInfo.freshnessLabel}</span>
+                {priceChangeInfo.isStale && <span className="text-xs">(stale)</span>}
+              </div>
+            )}
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button
