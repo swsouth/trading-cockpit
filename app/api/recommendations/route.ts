@@ -161,9 +161,11 @@ export async function GET(request: NextRequest) {
 
     console.log('📊 Final stats object:', stats);
 
-    // Get the latest scan date
+    // Get the latest scan date (most recent created_at timestamp)
     const latestScanDate = recommendations && recommendations.length > 0
-      ? recommendations[0].scan_date
+      ? recommendations.reduce((latest, rec) => {
+          return new Date(rec.created_at) > new Date(latest) ? rec.created_at : latest;
+        }, recommendations[0].created_at)
       : null;
 
     return NextResponse.json({

@@ -241,11 +241,23 @@ export default function RecommendationsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Market Scan Results</h1>
           <p className="text-muted-foreground mt-1">
-            Complete analysis of all {stats?.total || '249'} stocks from daily market scan
+            {activeTab === 'today'
+              ? `Today's scan: ${tabRecommendations.length} stocks analyzed`
+              : activeTab === 'hotlist'
+              ? `Your Hot List: ${hotListItems.length} pinned opportunities`
+              : `This week: ${stats?.total || 0} total scans across all days`
+            }
           </p>
           {latestScanDate && (
             <p className="text-sm text-muted-foreground mt-1">
-              Latest scan: {new Date(latestScanDate).toLocaleDateString()}
+              Latest scan: {new Date(latestScanDate).toLocaleString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              })}
             </p>
           )}
         </div>
