@@ -17,15 +17,15 @@ config({ path: resolve(__dirname, '../../.env.local') });
 import { createClient } from '@supabase/supabase-js';
 
 // ═══════════════════════════════════════════════════════════════════
-// DATA SOURCE: CoinAPI (PRIMARY - ACTIVE with $30 credits)
+// DATA SOURCE: CoinAPI (PRIMARY - ACTIVE)
 // ═══════════════════════════════════════════════════════════════════
-// Uses date-bounded queries for 10 credit cap optimization
-// Cost: ~20 credits per crypto (15m + 1H data) = 300 credits per full scan
+// Premium crypto market data with optimized credit usage:
+// - Date-bounded queries: 10 credit cap (even for large datasets!)
+// - Direct WebSocket feeds from exchanges
+// - Cost: ~20 credits per crypto (15m + 1H data) = 300 credits per full scan
+// - Sequential processing with 1s delays (no rate limits!)
 // ═══════════════════════════════════════════════════════════════════
 import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/coinApiAdapter';
-
-// BACKUP: Twelve Data (kept for fallback if CoinAPI fails)
-// import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '../../lib/cryptoData/twelveDataAdapter';
 
 import * as analysis from '../../lib/analysis';
 import * as scoring from '../../lib/scoring';
@@ -284,7 +284,7 @@ export async function runIntradayCryptoScan() {
     console.log(`  ${rec.symbol}: ${rec.setup_type} (${rec.opportunity_score}/100) - Valid until ${new Date(rec.valid_until!).toLocaleTimeString()}`);
   });
 
-  // Save to database (intraday_opportunities table - unified with stock scanner)
+  // Save to database (trade_recommendations table - same as stock scanner)
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -300,40 +300,46 @@ export async function runIntradayCryptoScan() {
     fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
     const { error: deleteError } = await supabase
-      .from('intraday_opportunities')
+      .from('trade_recommendations')
       .delete()
-      .eq('asset_type', 'crypto')
-      .lt('scan_timestamp', fourHoursAgo.toISOString());
+      .ilike('symbol', '%') // All crypto symbols (BTC, ETH, etc. - no slashes)
+      .eq('timeframe', '15min')
+      .lt('created_at', fourHoursAgo.toISOString());
 
     if (deleteError) {
       console.warn('⚠️  Warning: Failed to cleanup old crypto opportunities:', deleteError);
     }
 
-    // Map recommendations to intraday_opportunities format
+    // Map recommendations to trade_recommendations format
     const opportunities = recommendations.map(rec => ({
-      user_id: null, // System-generated (not user-specific)
       symbol: rec.symbol,
-      timeframe: rec.timeframe,
-      scan_timestamp: rec.scan_date,
+      scan_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       recommendation_type: rec.recommendation_type,
+      setup_type: `Crypto ${rec.recommendation_type} - ${rec.timeframe}`,
+      timeframe: rec.timeframe,
       entry_price: rec.entry_price,
       target_price: rec.target_price,
       stop_loss: rec.stop_loss,
+      risk_amount: rec.entry_price - rec.stop_loss,
+      reward_amount: rec.target_price - rec.entry_price,
+      risk_reward_ratio: rec.risk_reward_ratio,
       opportunity_score: rec.opportunity_score,
       confidence_level: rec.confidence_level,
-      rationale: rec.rationale,
       current_price: rec.current_price,
       channel_status: rec.channel_status,
       pattern_detected: rec.pattern_detected,
-      rsi: null, // Not calculated in current implementation
-      expires_at: rec.valid_until,
-      status: 'active',
-      asset_type: 'crypto',
+      rsi: null,
+      trend: rec.trend,
+      rationale: rec.rationale,
+      technical_summary: `Crypto intraday ${rec.recommendation_type} setup`,
+      is_active: true,
+      outcome: null,
+      expires_at: rec.valid_until, // Expires in ~15 minutes
     }));
 
     // Insert new opportunities
     const { error: insertError } = await supabase
-      .from('intraday_opportunities')
+      .from('trade_recommendations')
       .insert(opportunities);
 
     if (insertError) {
