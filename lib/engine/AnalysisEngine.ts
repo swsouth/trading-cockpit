@@ -277,7 +277,12 @@ export class AnalysisEngine {
     const { detectChartPatterns } = require('./patterns/chartPatterns');
 
     // Detect candlestick patterns (single/double candle formations, regime-aware)
-    const candlestickPatterns = detectCandlestickPatterns(candles, regime);
+    // Use crypto-specific thresholds for crypto assets (relaxed for 15-min bars)
+    const candlestickPatterns = detectCandlestickPatterns(
+      candles,
+      regime,
+      this.config.assetType // 'stock' or 'crypto'
+    );
 
     // Detect chart patterns (multi-bar formations: flags, triangles, double tops/bottoms)
     // Chart patterns require longer price history (20-50 bars) and provide powerful continuation/reversal signals

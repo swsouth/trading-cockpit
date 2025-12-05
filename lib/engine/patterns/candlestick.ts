@@ -25,36 +25,67 @@ export interface CandlestickPattern {
 }
 
 /**
+ * Pattern detection thresholds
+ * Crypto 15-min bars have smaller bodies and more wick volatility than stock daily bars
+ */
+interface PatternThresholds {
+  engulfingBodyRatio: number;    // Minimum body ratio for engulfing patterns
+  hammerShadowRatio: number;     // Minimum shadow:body ratio for hammer/shooting star
+  hammerBodyMinPct: number;      // Minimum body size as % of range
+  dojiBodyMaxPct: number;        // Maximum body size as % of range for doji
+}
+
+const STOCK_THRESHOLDS: PatternThresholds = {
+  engulfingBodyRatio: 0.8,
+  hammerShadowRatio: 2.0,
+  hammerBodyMinPct: 0.2,
+  dojiBodyMaxPct: 0.1,
+};
+
+const CRYPTO_THRESHOLDS: PatternThresholds = {
+  engulfingBodyRatio: 0.6,  // Relaxed from 0.8 (crypto has smaller bodies)
+  hammerShadowRatio: 1.5,   // Relaxed from 2.0 (crypto has more wicks)
+  hammerBodyMinPct: 0.15,   // Relaxed from 0.2
+  dojiBodyMaxPct: 0.15,     // Increased from 0.1 (crypto bars are noisier)
+};
+
+/**
  * Detect candlestick patterns in the most recent candles
  * Returns array of detected patterns, sorted by confidence
+ *
+ * @param candles - Historical candle data
+ * @param regime - Market regime analysis (optional)
+ * @param assetType - 'stock' or 'crypto' to use appropriate thresholds
  */
 export function detectCandlestickPatterns(
   candles: Candle[],
-  regime?: RegimeAnalysis
+  regime?: RegimeAnalysis,
+  assetType: 'stock' | 'crypto' = 'stock'
 ): PatternResult[] {
   if (candles.length < 2) {
     return [];
   }
 
   const patterns: CandlestickPattern[] = [];
+  const thresholds = assetType === 'crypto' ? CRYPTO_THRESHOLDS : STOCK_THRESHOLDS;
 
   const last = candles[candles.length - 1];
   const prev = candles[candles.length - 2];
 
-  // Check each pattern
-  const bullishEngulfing = checkBullishEngulfing(last, prev);
+  // Check each pattern with asset-specific thresholds
+  const bullishEngulfing = checkBullishEngulfing(last, prev, thresholds);
   if (bullishEngulfing) patterns.push(bullishEngulfing);
 
-  const bearishEngulfing = checkBearishEngulfing(last, prev);
+  const bearishEngulfing = checkBearishEngulfing(last, prev, thresholds);
   if (bearishEngulfing) patterns.push(bearishEngulfing);
 
-  const hammer = checkHammer(last);
+  const hammer = checkHammer(last, thresholds);
   if (hammer) patterns.push(hammer);
 
-  const shootingStar = checkShootingStar(last);
+  const shootingStar = checkShootingStar(last, thresholds);
   if (shootingStar) patterns.push(shootingStar);
 
-  const doji = checkDoji(last);
+  const doji = checkDoji(last, thresholds);
   if (doji) patterns.push(doji);
 
   const piercingLine = checkPiercingLine(last, prev);
@@ -90,7 +121,8 @@ export function detectCandlestickPatterns(
 
 function checkBullishEngulfing(
   last: Candle,
-  prev: Candle
+  prev: Candle,
+  thresholds: PatternThresholds
 ): CandlestickPattern | null {
   const lastBody = Math.abs(last.close - last.open);
   const prevBody = Math.abs(prev.close - prev.open);
@@ -103,13 +135,13 @@ function checkBullishEngulfing(
   // 2. Current candle is bullish
   // 3. Current opens at or below previous close
   // 4. Current closes at or above previous open
-  // 5. Current body is at least 80% of previous body
+  // 5. Current body is at least [threshold]% of previous body
   if (
     isBearishCandle &&
     isBullishCandle &&
     last.open <= prev.close &&
     last.close >= prev.open &&
-    lastBody > prevBody * 0.8
+    lastBody > prevBody * thresholds.engulfingBodyRatio
   ) {
     // Calculate confidence based on engulfing strength
     const engulfingRatio = lastBody / prevBody;
@@ -129,7 +161,8 @@ function checkBullishEngulfing(
 
 function checkBearishEngulfing(
   last: Candle,
-  prev: Candle
+  prev: Candle,
+  thresholds: PatternThresholds
 ): CandlestickPattern | null {
   const lastBody = Math.abs(last.close - last.open);
   const prevBody = Math.abs(prev.close - prev.open);
@@ -143,7 +176,7 @@ function checkBearishEngulfing(
     isBearishCandle &&
     last.open >= prev.close &&
     last.close <= prev.open &&
-    lastBody > prevBody * 0.8
+    lastBody > prevBody * thresholds.engulfingBodyRatio
   ) {
     const engulfingRatio = lastBody / prevBody;
     const baseConfidence = 0.7;
@@ -160,7 +193,7 @@ function checkBearishEngulfing(
   return null;
 }
 
-function checkHammer(last: Candle): CandlestickPattern | null {
+function checkHammer(last: Candle, thresholds: PatternThresholds): CandlestickPattern | null {
   const body = Math.abs(last.close - last.open);
   const range = last.high - last.low;
   const upperShadow = last.high - Math.max(last.open, last.close);
@@ -170,14 +203,14 @@ function checkHammer(last: Candle): CandlestickPattern | null {
 
   // Hammer criteria:
   // 1. Bullish candle
-  // 2. Lower shadow > 2x body
+  // 2. Lower shadow > [threshold]x body
   // 3. Upper shadow < 0.5x body
-  // 4. Body > 20% of range
+  // 4. Body > [threshold]% of range
   if (
     isBullishCandle &&
-    lowerShadow > body * 2 &&
+    lowerShadow > body * thresholds.hammerShadowRatio &&
     upperShadow < body * 0.5 &&
-    body > range * 0.2
+    body > range * thresholds.hammerBodyMinPct
   ) {
     // Calculate confidence based on shadow ratios
     const shadowRatio = lowerShadow / body;
@@ -195,7 +228,7 @@ function checkHammer(last: Candle): CandlestickPattern | null {
   return null;
 }
 
-function checkShootingStar(last: Candle): CandlestickPattern | null {
+function checkShootingStar(last: Candle, thresholds: PatternThresholds): CandlestickPattern | null {
   const body = Math.abs(last.close - last.open);
   const range = last.high - last.low;
   const upperShadow = last.high - Math.max(last.open, last.close);
@@ -206,9 +239,9 @@ function checkShootingStar(last: Candle): CandlestickPattern | null {
   // Shooting Star criteria (mirror of hammer)
   if (
     isBearishCandle &&
-    upperShadow > body * 2 &&
+    upperShadow > body * thresholds.hammerShadowRatio &&
     lowerShadow < body * 0.5 &&
-    body > range * 0.2
+    body > range * thresholds.hammerBodyMinPct
   ) {
     const shadowRatio = upperShadow / body;
     const baseConfidence = 0.65;
@@ -225,15 +258,15 @@ function checkShootingStar(last: Candle): CandlestickPattern | null {
   return null;
 }
 
-function checkDoji(last: Candle): CandlestickPattern | null {
+function checkDoji(last: Candle, thresholds: PatternThresholds): CandlestickPattern | null {
   const body = Math.abs(last.close - last.open);
   const range = last.high - last.low;
 
-  // Doji criteria: Body < 10% of range
-  if (body < range * 0.1) {
+  // Doji criteria: Body < [threshold]% of range
+  if (body < range * thresholds.dojiBodyMaxPct) {
     // Confidence based on how small the body is
     const bodyRatio = body / range;
-    const confidence = 0.5 + (0.1 - bodyRatio) * 5; // Range: 0.5-1.0
+    const confidence = 0.5 + (thresholds.dojiBodyMaxPct - bodyRatio) * 5; // Range: 0.5-1.0
 
     return {
       type: 'doji',

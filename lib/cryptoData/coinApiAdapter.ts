@@ -350,21 +350,18 @@ export function getMinutesUntilNext15MinBar(): number {
 }
 
 /**
- * Get timestamp of next 15-min bar close
- * Used for "Valid until" display
+ * Get timestamp for crypto intraday opportunity expiry
  *
- * @returns ISO timestamp of next bar close
+ * Changed from 15-min bar close to 1-hour expiry for better UX:
+ * - Gives users time to review opportunities after scan completes
+ * - Reduces pressure to act immediately
+ * - Still fresh for intraday trading (opportunities refresh every 15-30 min)
+ *
+ * @returns ISO timestamp 1 hour from now
  */
 export function getNext15MinBarClose(): string {
   const now = new Date();
-  const minutes = now.getMinutes();
-  const minutesIntoBar = minutes % 15;
-  const minutesRemaining = 15 - minutesIntoBar;
+  const expiryTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
 
-  const nextClose = new Date(now);
-  nextClose.setMinutes(now.getMinutes() + minutesRemaining);
-  nextClose.setSeconds(0);
-  nextClose.setMilliseconds(0);
-
-  return nextClose.toISOString();
+  return expiryTime.toISOString();
 }
