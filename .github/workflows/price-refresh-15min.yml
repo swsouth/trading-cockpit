@@ -32,7 +32,7 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.SCAN_SECRET_KEY }}" \
             -H "Content-Type: application/json")
 
-          http_code=$(echo "$response" | tail -n1)
+          http_code=$(echo "$response" | tail -n1 | tr -d '\r\n' | xargs)
           body=$(echo "$response" | sed '$d')
 
           echo "Response: $body"
@@ -44,7 +44,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+          if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
             echo "✅ Stock prices refreshed successfully"
 
             # Parse and display results

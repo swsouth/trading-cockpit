@@ -33,13 +33,13 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.SCAN_SECRET_KEY }}" \
             -H "Content-Type: application/json")
 
-          http_code=$(echo "$response" | tail -n1)
+          http_code=$(echo "$response" | tail -n1 | tr -d '\r\n' | xargs)
           body=$(echo "$response" | sed '$d')
 
           echo "Response: $body"
           echo "HTTP Status: $http_code"
 
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+          if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
             echo "✅ Market scan completed successfully"
 
             # Parse and display results
@@ -49,7 +49,7 @@ jobs:
             fi
 
             exit 0
-          elif [ "$http_code" -eq 504 ]; then
+          elif [ "$http_code" = "504" ]; then
             echo "⏱️  Scan timed out (expected for long-running scans)"
             echo "   Check Netlify function logs for actual status"
             exit 0
