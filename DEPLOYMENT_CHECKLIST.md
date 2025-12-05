@@ -33,8 +33,9 @@ SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 
 ### Scanning Security
 ```
-SCAN_SECRET_KEY=6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99
+SCAN_SECRET_KEY=<copy-from-env-local>
 ```
+**Note:** Copy the exact value from your `.env.local` file. This key is used for GitHub Actions authentication.
 
 ### Market Data APIs
 ```
@@ -73,7 +74,7 @@ NEXT_PUBLIC_ALPACA_BASE_URL=https://paper-api.alpaca.markets
    - Used by: Both workflows to call API endpoints
 
 2. **SCAN_SECRET_KEY**
-   - Value: `6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99`
+   - Value: Copy from your `.env.local` file
    - Used by: Authentication header in API calls
    - **MUST MATCH** Netlify environment variable exactly
 
@@ -164,9 +165,9 @@ NEXT_PUBLIC_ALPACA_BASE_URL=https://paper-api.alpaca.markets
 ### Workflow Fails with 401 Unauthorized
 **Cause:** `SCAN_SECRET_KEY` mismatch between GitHub and Netlify
 **Fix:**
-1. Copy exact value from `.env.local`: `6de603d03170fc71a028a27d4f337c64dd3cd2b029e56e52bef58b4d5ccaad99`
-2. Update GitHub secret
-3. Update Netlify environment variable
+1. Copy exact value from your `.env.local` file
+2. Update GitHub secret with this value
+3. Update Netlify environment variable with the same value
 4. Redeploy Netlify site
 
 ### Workflow Fails with 404 Not Found
