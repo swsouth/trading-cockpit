@@ -22,7 +22,7 @@ interface CandlestickChartProps {
 export function CandlestickChart({ candles, channel }: CandlestickChartProps) {
   const chartData = useMemo(() => {
     return candles.map((candle) => ({
-      date: new Date(candle.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: new Date(candle.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
       high: candle.high,
       low: candle.low,
       open: candle.open,

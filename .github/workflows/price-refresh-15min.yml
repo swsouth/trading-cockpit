@@ -1,0 +1,68 @@
+name: Stock Price Refresh (Every 15 Minutes)
+
+on:
+  schedule:
+    # Every 15 minutes during market hours (9:30 AM - 4:00 PM ET)
+    # Winter (EST = UTC-5): 14:30-21:00 UTC
+    - cron: '30,45 14 * * 1-5'   # 9:30 AM, 9:45 AM ET
+    - cron: '0,15,30,45 15-20 * * 1-5'  # 10:00 AM - 3:45 PM ET
+    - cron: '0 21 * * 1-5'        # 4:00 PM ET
+
+    # Summer (EDT = UTC-4): 13:30-20:00 UTC
+    - cron: '30,45 13 * * 1-5'   # 9:30 AM, 9:45 AM ET
+    - cron: '0,15,30,45 14-19 * * 1-5'  # 10:00 AM - 3:45 PM ET
+    - cron: '0 20 * * 1-5'        # 4:00 PM ET
+
+  # Manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  refresh-stock-prices:
+    name: Update Live Stock Prices
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refresh Stock Prices
+        run: |
+          echo "💰 Refreshing live stock prices for active recommendations..."
+          echo "⏰ Refresh time: $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://${{ secrets.SITE_URL }}/api/scan/refresh-prices \
+            -H "Authorization: Bearer ${{ secrets.SCAN_SECRET_KEY }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          # Market closed is a success condition (skip gracefully)
+          if echo "$body" | grep -q "Market closed"; then
+            echo "⏸️  Market is closed - price refresh skipped (expected)"
+            exit 0
+          fi
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Stock prices refreshed successfully"
+
+            # Parse and display results
+            updated=$(echo "$body" | grep -o '"updated":[0-9]*' | grep -o '[0-9]*')
+            if [ -n "$updated" ]; then
+              echo "📊 Updated $updated stock prices"
+            fi
+
+            exit 0
+          else
+            echo "❌ Price refresh failed with status $http_code"
+            echo "   Response: $body"
+            exit 1
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Stock price refresh failed"
+          echo "   Check Netlify function logs for details"
+          echo "   API endpoint: /api/scan/refresh-prices"

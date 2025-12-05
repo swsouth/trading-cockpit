@@ -250,7 +250,7 @@ export default function RecommendationsPage() {
           </p>
           {latestScanDate && (
             <p className="text-sm text-muted-foreground mt-1">
-              Latest scan: {new Date(latestScanDate).toLocaleString('en-US', {
+              Latest scan: {new Date(latestScanDate).toLocaleString(undefined, {
                 month: 'numeric',
                 day: 'numeric',
                 year: 'numeric',

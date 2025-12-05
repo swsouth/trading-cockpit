@@ -1,0 +1,67 @@
+name: Market Scan (3x Daily)
+
+on:
+  schedule:
+    # Market Open Scan: 9:45 AM ET (13:45 UTC during EST, 14:45 during EDT)
+    - cron: '45 13 * * 1-5'  # Winter (EST = UTC-5)
+    - cron: '45 14 * * 1-5'  # Summer (EDT = UTC-4)
+
+    # Lunch Scan: 12:30 PM ET
+    - cron: '30 16 * * 1-5'  # Winter (EST)
+    - cron: '30 17 * * 1-5'  # Summer (EDT)
+
+    # Market Close Scan: 4:15 PM ET
+    - cron: '15 20 * * 1-5'  # Winter (EST)
+    - cron: '15 21 * * 1-5'  # Summer (EDT)
+
+  # Manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  full-market-scan:
+    name: Run Full Technical Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Full Market Scan
+        run: |
+          echo "🚀 Triggering full market scan (channel + patterns + scoring)..."
+          echo "⏰ Scan time: $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://${{ secrets.SITE_URL }}/api/scan/trigger \
+            -H "Authorization: Bearer ${{ secrets.SCAN_SECRET_KEY }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Market scan completed successfully"
+
+            # Parse and display results
+            recommendations=$(echo "$body" | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
+            if [ -n "$recommendations" ]; then
+              echo "📊 Found $recommendations recommendations"
+            fi
+
+            exit 0
+          elif [ "$http_code" -eq 504 ]; then
+            echo "⏱️  Scan timed out (expected for long-running scans)"
+            echo "   Check Netlify function logs for actual status"
+            exit 0
+          else
+            echo "❌ Market scan failed with status $http_code"
+            echo "   Response: $body"
+            exit 1
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Full market scan failed"
+          echo "   Check Netlify function logs for details"
+          echo "   API endpoint: /api/scan/trigger"
