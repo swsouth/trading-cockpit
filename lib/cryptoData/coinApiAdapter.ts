@@ -77,12 +77,12 @@ function getTimeRange(hours: number): { start: string; end: string } {
  * COST OPTIMIZATION: Uses date-bounded query (10 credit cap regardless of bars returned)
  *
  * @param symbol - Crypto ticker (e.g., 'BTC/USD', 'ETH/USD')
- * @param hours - Number of hours to look back (default: 24)
+ * @param hours - Number of hours to look back (default: 72 = 3 days for 60+ bars)
  * @returns Array of 15-minute candles
  */
 export async function getCrypto15MinCandles(
   symbol: string,
-  hours: number = 24
+  hours: number = 72  // 3 days = ~288 bars (enough for 60+ requirement)
 ): Promise<Candle[]> {
   const cacheKey = `coinapi_15min_${symbol}`;
   const cached = getCached<Candle[]>(cacheKey);
@@ -159,12 +159,12 @@ export async function getCrypto15MinCandles(
  * COST OPTIMIZATION: Uses date-bounded query (10 credit cap regardless of bars returned)
  *
  * @param symbol - Crypto ticker (e.g., 'BTC/USD', 'ETH/USD')
- * @param hours - Number of hours to look back (default: 168 = 1 week)
+ * @param hours - Number of hours to look back (default: 240 = 10 days for 60+ bars)
  * @returns Array of 1-hour candles
  */
 export async function getCrypto1HCandles(
   symbol: string,
-  hours: number = 168 // 1 week default
+  hours: number = 240 // 10 days = 240 bars (enough for 60+ requirement + EMA200)
 ): Promise<Candle[]> {
   const cacheKey = `coinapi_1h_${symbol}`;
   const cached = getCached<Candle[]>(cacheKey);
@@ -315,8 +315,8 @@ export async function batchGetCryptoMultiTimeframe(
 
       // Fetch both timeframes (date-bounded = 10 credits each = 20 total)
       const [candles15m, candles1h] = await Promise.all([
-        getCrypto15MinCandles(symbol, 24),  // Last 24 hours of 15m bars
-        getCrypto1HCandles(symbol, 168),    // Last week of 1H bars
+        getCrypto15MinCandles(symbol, 72),   // Last 3 days of 15m bars (288 bars)
+        getCrypto1HCandles(symbol, 240),     // Last 10 days of 1H bars (240 bars)
       ]);
 
       results.set(symbol, { candles15m, candles1h });

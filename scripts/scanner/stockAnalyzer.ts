@@ -55,12 +55,13 @@ export async function analyzeSingleStock(
       return result;
     }
 
-    // 5. Enhanced vetting (20-point checklist)
+    // 5. Enhanced vetting (20-point checklist) - INFORMATIONAL ONLY
     // This adds fundamental analysis, earnings proximity, analyst ratings, etc.
+    // Vetting does NOT filter recommendations - all are saved for user review
     let vettingResult = null;
     try {
       vettingResult = await vetRecommendation(result.recommendation, recentCandles);
-      console.log(`   ${symbol}: Vetting score ${vettingResult.overallScore}/100 (${vettingResult.passed ? 'PASS' : 'FAIL'})`);
+      console.log(`   ${symbol}: Vetting score ${vettingResult.overallScore}/100 (informational only - saved regardless)`);
     } catch (error) {
       console.warn(`   ${symbol}: Vetting failed, skipping`, error);
     }

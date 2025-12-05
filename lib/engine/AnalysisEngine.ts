@@ -59,7 +59,8 @@ export class AnalysisEngine {
   async analyzeAsset(input: AnalysisInput): Promise<Signal | null> {
     // Stage 1: Validate input data
     if (!this.validateInput(input)) {
-      console.warn(`[AnalysisEngine] Invalid input for ${input.symbol}`);
+      const minCandles = this.config.timeframe === 'intraday' ? 50 : 60;
+      console.warn(`[AnalysisEngine] ${input.symbol} rejected - Bar count: ${input.candles.length}, Min required: ${minCandles}`);
       return null;
     }
 
@@ -84,6 +85,7 @@ export class AnalysisEngine {
 
     // If no patterns detected, no signal
     if (patterns.length === 0) {
+      console.log(`[AnalysisEngine] ${input.symbol} - No patterns detected (candles: ${input.candles.length}, regime: ${regime.type})`);
       return null;
     }
 

@@ -73,19 +73,23 @@ async function analyzeCrypto(
   candles1h: Candle[]
 ): Promise<CryptoAnalysisResult> {
   try {
-    if (!candles15m || candles15m.length < 20) {
+    // Require 60 bars minimum for stable indicator calculations
+    // 60 bars × 15 min = 15 hours of data (sufficient for EMA50, RSI, ADX)
+    if (!candles15m || candles15m.length < 60) {
       return {
         symbol,
         success: false,
-        error: 'Insufficient 15-min bars (need at least 20)',
+        error: 'Insufficient 15-min bars (need at least 60 for indicator stability)',
       };
     }
 
-    if (!candles1h || candles1h.length < 20) {
+    // Require 60 1H bars for reliable trend analysis
+    // 60 bars × 1H = 2.5 days of trend context
+    if (!candles1h || candles1h.length < 60) {
       return {
         symbol,
         success: false,
-        error: 'Insufficient 1H bars (need at least 20 for trend analysis)',
+        error: 'Insufficient 1H bars (need at least 60 for trend analysis)',
       };
     }
 
