@@ -42,10 +42,14 @@ jobs:
           if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
             echo "✅ Market scan completed successfully"
 
-            # Parse and display results
-            recommendations=$(echo "$body" | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
-            if [ -n "$recommendations" ]; then
-              echo "📊 Found $recommendations recommendations"
+            # Parse and display results if available
+            if echo "$body" | grep -q '"success"'; then
+              echo "📊 Scan executed successfully"
+              # Try to extract duration if present
+              duration=$(echo "$body" | grep -o '"durationMs":[0-9]*' | grep -o '[0-9]*')
+              if [ -n "$duration" ]; then
+                echo "⏱️  Duration: $((duration / 1000))s"
+              fi
             fi
 
             exit 0
