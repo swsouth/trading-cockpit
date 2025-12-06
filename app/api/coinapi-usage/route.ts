@@ -22,17 +22,20 @@ export async function GET() {
 
     // Note: CoinAPI doesn't have a usage endpoint in their free tier
     // We'll track estimated usage based on scan frequency
-    // Each crypto scan = ~280 credits (14 cryptos × 20 credits each)
+    // HIGH-FREQUENCY STRATEGY:
+    // - 10 elite cryptos (BTC, ETH, SOL, BNB, XRP, ADA, AVAX, DOGE, MATIC, LINK)
+    // - Scans every 15 minutes, 24/7 (96 scans/day)
+    // - Each crypto scan = 200 credits (10 cryptos × 20 credits each)
 
     // For now, return static info - user can check dashboard for actual balance
     return NextResponse.json({
       available: true,
       stats: {
-        balance: 30.00, // $30 in credits
-        creditsPerScan: 280, // Estimated: 14 cryptos × 20 credits (15m + 1H data)
-        estimatedScansRemaining: 107, // 30,000 credits / 280 per scan
+        balance: 30.00, // $30 in credits (30,000 credits at $1 = 3,000 credits)
+        creditsPerScan: 200, // 10 elite cryptos × 20 credits each
+        estimatedScansRemaining: 150, // 30,000 credits / 200 per scan
         creditsPerCrypto: 20, // 15-min (10) + 1H (10)
-        cryptosPerScan: 14, // Average successful (out of 15 total)
+        cryptosPerScan: 10, // 10 elite cryptos every 15 minutes
         lastUpdated: new Date().toISOString(),
       },
       message: 'Check CoinAPI dashboard for real-time balance: https://www.coinapi.io/dashboard',

@@ -156,33 +156,12 @@ export default function DayTraderPage() {
     return filtered;
   };
 
-  // Calculate which crypto tiers will scan at current minute
-  const getCryptoTierInfo = () => {
-    const minute = currentTime.getMinutes();
-    const tiers = [];
-    let totalCoins = 0;
-
-    if (minute % 5 === 0) {
-      tiers.push({ tier: 1, count: 10, label: 'Majors' });
-      totalCoins += 10;
-    }
-    if (minute % 10 === 0) {
-      tiers.push({ tier: 2, count: 20, label: 'Large Caps' });
-      totalCoins += 20;
-    }
-    if (minute % 15 === 0) {
-      tiers.push({ tier: 3, count: 30, label: 'Mid Caps' });
-      totalCoins += 30;
-    }
-    if (minute % 30 === 0) {
-      tiers.push({ tier: 4, count: 40, label: 'Emerging' });
-      totalCoins += 40;
-    }
-
-    return { tiers, totalCoins, minute };
-  };
-
-  const cryptoTierInfo = getCryptoTierInfo();
+  // High-frequency strategy: 10 elite cryptos every 15 minutes
+  const CRYPTO_COUNT = 10;
+  const ELITE_CRYPTOS = [
+    'BTC/USD', 'ETH/USD', 'SOL/USD', 'BNB/USD', 'XRP/USD',
+    'ADA/USD', 'AVAX/USD', 'DOGE/USD', 'MATIC/USD', 'LINK/USD'
+  ];
 
   // Filter for crypto opportunities only
   const rawCryptoOpportunities = opportunities.filter(opp =>
@@ -250,7 +229,7 @@ export default function DayTraderPage() {
     try {
       toast({
         title: 'Crypto Scanner Starting',
-        description: `Scanning ${cryptoTierInfo.totalCoins} cryptocurrencies...`,
+        description: `Scanning ${CRYPTO_COUNT} elite cryptocurrencies...`,
       });
 
       // Get the current session token
@@ -445,7 +424,7 @@ export default function DayTraderPage() {
             <h1 className="text-3xl md:text-4xl font-bold">Crypto Day Trader</h1>
           </div>
           <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Live cryptocurrency intraday setups • Auto-refreshing every 10s • 24/7 trading
+            Live cryptocurrency intraday setups • Auto-scans every 15 mins • 24/7 trading
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -461,12 +440,7 @@ export default function DayTraderPage() {
             ) : (
               <Play className="mr-2 h-5 w-5" />
             )}
-            {scannerRunning
-              ? 'Scanning...'
-              : cryptoTierInfo.totalCoins > 0
-                ? `Scan ${cryptoTierInfo.totalCoins} Cryptos`
-                : 'No Scan This Minute'
-            }
+            {scannerRunning ? 'Scanning...' : `Scan ${CRYPTO_COUNT} Elite Cryptos`}
           </Button>
           <Button
             onClick={fetchOpportunities}
@@ -532,39 +506,38 @@ export default function DayTraderPage() {
           </CardContent>
         </Card>
 
-        {/* Crypto Scan Schedule Card - Enhanced */}
+        {/* Crypto Scan Schedule Card */}
         <Card className="border-blue-200 dark:border-blue-900">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Clock className="h-6 w-6 text-blue-500" />
-              Tiered Scan Schedule
+              High-Frequency Strategy
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold">:{cryptoTierInfo.minute.toString().padStart(2, '0')}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Current Minute</p>
+                  <p className="text-2xl font-bold">{CRYPTO_COUNT} Elite Cryptos</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Scanned every 15 minutes</p>
                 </div>
-                <Badge className={`text-sm px-3 py-1 ${cryptoTierInfo.totalCoins > 0 ? 'bg-green-600' : 'bg-slate-400'}`}>
-                  {cryptoTierInfo.totalCoins > 0 ? `${cryptoTierInfo.totalCoins} COINS` : 'IDLE'}
+                <Badge className="text-sm px-3 py-1 bg-green-600">
+                  24/7 ACTIVE
                 </Badge>
               </div>
-              {cryptoTierInfo.tiers.length > 0 ? (
-                <div className="space-y-2">
-                  {cryptoTierInfo.tiers.map((t) => (
-                    <div key={t.tier} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900 rounded">
-                      <span className="text-sm font-medium">Tier {t.tier}: {t.label}</span>
-                      <Badge variant="outline" className="font-semibold">{t.count} coins</Badge>
-                    </div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                <p className="font-semibold">Tracked Assets:</p>
+                <div className="flex flex-wrap gap-1">
+                  {ELITE_CRYPTOS.map((crypto) => (
+                    <Badge key={crypto} variant="outline" className="text-xs">
+                      {crypto.replace('/USD', '')}
+                    </Badge>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Next scan at :{((Math.floor(cryptoTierInfo.minute / 5) + 1) * 5).toString().padStart(2, '0')}
+                <p className="text-xs mt-2 pt-2 border-t">
+                  📊 96 scans/day • 200 credits/scan • ~$6.40/day cost
                 </p>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>
