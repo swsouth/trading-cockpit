@@ -1,44 +1,57 @@
-name: Crypto Intraday Scanner (15-min)
+name: Crypto Intraday Scanner (High-Frequency)
 
-# Run every 15 minutes during crypto market hours (24/7)
-# Crypto markets never close, so we scan continuously
+# HIGH-FREQUENCY STRATEGY:
+# - 10 elite cryptos (BTC, ETH, SOL, BNB, XRP, ADA, AVAX, DOGE, MATIC, LINK)
+# - Scans every 15 minutes, 24/7 (96 scans/day)
+# - Cost: 200 credits/scan × 96 = 19,200 credits/day (~$6.40/day)
+# - Optimized for catching momentum shifts and directional moves
 on:
   schedule:
-    # Every 15 minutes, 24/7
+    # Every 15 minutes, 24/7 (crypto markets never close)
     - cron: '0,15,30,45 * * * *'
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch: # Allow manual triggering from GitHub UI
 
 jobs:
   scan-crypto-intraday:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10 # Increased for 10 cryptos with MTF analysis
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run crypto intraday scanner
-        env:
-          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run scan-crypto-intraday
-
-      - name: Report status
-        if: always()
+      - name: Trigger Crypto Scanner via API
         run: |
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "✅ Crypto intraday scan completed successfully"
+          echo "🚀 Triggering high-frequency crypto scanner (10 elite cryptos)..."
+          echo "⏰ Scan time: $(date)"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://${{ secrets.SITE_URL }}/api/scan/intraday/crypto \
+            -H "Authorization: Bearer ${{ secrets.SCAN_SECRET_KEY }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1 | tr -d '\r\n' | xargs)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+            echo "✅ Crypto scan completed successfully"
+
+            # Parse and display results if available
+            opportunities=$(echo "$body" | grep -o '"opportunitiesFound":[0-9]*' | grep -o '[0-9]*')
+            if [ -n "$opportunities" ]; then
+              echo "📊 Found $opportunities intraday opportunities"
+            fi
+
+            exit 0
           else
-            echo "❌ Crypto intraday scan failed"
+            echo "❌ Crypto scan failed with status $http_code"
+            echo "   Response: $body"
+            exit 1
           fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ High-frequency crypto scan failed"
+          echo "   Check Netlify function logs for details"
+          echo "   API endpoint: /api/scan/intraday/crypto"

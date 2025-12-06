@@ -85,7 +85,9 @@
       "Bash(taskkill:*)",
       "Bash(timeout /t 60)",
       "Bash(npm run refresh-prices:*)",
-      "Bash(node test-yahoo-crypto.js:*)"
+      "Bash(node test-yahoo-crypto.js:*)",
+      "Bash(timeout /t 10)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

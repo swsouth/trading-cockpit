@@ -199,6 +199,7 @@ async function storeOpportunities(opportunities: CryptoOpportunity[]): Promise<v
   }
 
   console.log('   ✅ Supabase credentials verified');
+  console.log(`   🔗 Connecting to: ${supabaseUrl}`);
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // First, mark all existing crypto opportunities as expired (cleanup)

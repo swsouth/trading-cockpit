@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('trade_recommendations')
       .select('*')
+      .eq('timeframe', 'swing_trade') // STOCKS ONLY - crypto is in intraday_opportunities table
       .order(sortColumn, { ascending })
       .order('created_at', { ascending: false }); // Secondary sort by date
 

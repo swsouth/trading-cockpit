@@ -1,5 +1,5 @@
 ---
-name: UX-Design-Specialist
+name: AURA (UX Specialist)
 description: When new features are being added and or changes to an existing page are being made, this agent is intended to help ensure the user experience is optimal
 model: sonnet
 color: cyan

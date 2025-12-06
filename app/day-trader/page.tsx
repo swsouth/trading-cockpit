@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, TrendingUp, Clock, Target, AlertCircle, Activity, RefreshCw, DollarSign, Bitcoin, Play, Volume2, Zap, Newspaper } from 'lucide-react';
+import { Loader2, TrendingUp, Clock, Target, AlertCircle, RefreshCw, Bitcoin, Play, Volume2, Zap, Newspaper } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
@@ -32,25 +31,6 @@ interface IntradayOpportunity {
   asset_type?: 'stock' | 'crypto'; // Optional for backward compatibility
 }
 
-interface MarketStatus {
-  isOpen: boolean;
-  status: 'open' | 'closed' | 'pre-market' | 'after-hours';
-  message: string;
-  minutesUntilChange?: number;
-}
-
-interface AlpacaUsageStats {
-  available: boolean;
-  stats?: {
-    requestsLimit: number;
-    requestsRemaining: number;
-    resetTime: string;
-    lastUpdated: string;
-    percentUsed: number;
-  };
-  message?: string;
-}
-
 interface CoinApiUsageStats {
   available: boolean;
   stats?: {
@@ -69,11 +49,8 @@ export default function DayTraderPage() {
   const [loading, setLoading] = useState(false);
   const [scannerRunning, setScannerRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
-  const [alpacaUsage, setAlpacaUsage] = useState<AlpacaUsageStats | null>(null);
   const [coinApiUsage, setCoinApiUsage] = useState<CoinApiUsageStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<'stocks' | 'crypto'>('stocks');
 
   // Filtering & Sorting
   const [recommendationTypeFilter, setRecommendationTypeFilter] = useState<'all' | 'long' | 'short'>('all');
@@ -85,34 +62,29 @@ export default function DayTraderPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  // Handle paper trade
+  // Handle paper trade (crypto-only)
   const handlePaperTrade = async (opp: IntradayOpportunity) => {
     try {
       toast({
-        title: '🚀 Preparing Paper Trade',
+        title: '🚀 Preparing Crypto Paper Trade',
         description: `Setting up ${opp.symbol} ${opp.recommendation_type} trade...`,
       });
-
-      // Determine if it's crypto or stock
-      const isCrypto = opp.asset_type === 'crypto';
 
       // Convert intraday opportunity to trade recommendation format
       const tradeData = {
         symbol: opp.symbol,
         side: opp.recommendation_type === 'long' ? 'buy' : 'sell',
-        quantity: isCrypto ? 0.01 : 100, // Start with 0.01 BTC or 100 shares for now
+        quantity: 0.01, // Start with 0.01 BTC equivalent
         entry_price: opp.entry_price,
         stop_loss: opp.stop_loss,
         target_price: opp.target_price,
         order_type: 'limit',
         limit_price: opp.entry_price,
-        time_in_force: isCrypto ? 'gtc' : 'day', // Crypto uses GTC, stocks use DAY
-        asset_type: isCrypto ? 'crypto' : 'stock',
+        time_in_force: 'gtc', // Crypto uses GTC
+        asset_type: 'crypto',
       };
 
-      const endpoint = isCrypto ? '/api/paper-trade-crypto' : '/api/paper-trade';
-
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/paper-trade-crypto', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +100,7 @@ export default function DayTraderPage() {
       const result = await response.json();
 
       toast({
-        title: '✅ Paper Trade Placed',
+        title: '✅ Crypto Paper Trade Placed',
         description: `${opp.symbol} ${opp.recommendation_type} order submitted - Order ID: ${result.order_id}`,
         duration: 5000,
       });
@@ -212,32 +184,16 @@ export default function DayTraderPage() {
 
   const cryptoTierInfo = getCryptoTierInfo();
 
-  // Filter opportunities by asset type (raw data)
-  const rawStockOpportunities = opportunities.filter(opp =>
-    !opp.asset_type || opp.asset_type === 'stock'
-  );
+  // Filter for crypto opportunities only
   const rawCryptoOpportunities = opportunities.filter(opp =>
     opp.asset_type === 'crypto'
   );
 
   // Apply filtering and sorting
-  const stockOpportunities = filterAndSortOpportunities(rawStockOpportunities);
   const cryptoOpportunities = filterAndSortOpportunities(rawCryptoOpportunities);
 
-  // Check if scanner should be disabled due to rate limits
-  const isStockScannerDisabled = () => {
-    if (!alpacaUsage?.available || !alpacaUsage.stats) return false;
-    // Alpaca: 200/min limit, disable if > 95% used
-    return alpacaUsage.stats.percentUsed >= 95;
-  };
-
-  const isCryptoScannerDisabled = () => {
-    // CoinAPI has no rate limits - credit-based system
-    // Never disable crypto scanner
-    return false;
-  };
-
-  const isScannerDisabled = activeTab === 'stocks' ? isStockScannerDisabled() : isCryptoScannerDisabled();
+  // CoinAPI has no rate limits - credit-based system, never disable
+  const isScannerDisabled = false;
 
   // Fetch opportunities from database
   const fetchOpportunities = async () => {
@@ -250,7 +206,7 @@ export default function DayTraderPage() {
       const { data, error: fetchError } = await supabase
         .from('intraday_opportunities')
         .select('*')
-        // .eq('user_id', user.id)  // Removed: Show system-generated opportunities to all users
+        .eq('user_id', user.id)  // Filter by current user
         .eq('status', 'active')
         .gte('expires_at', new Date().toISOString())
         .order('opportunity_score', { ascending: false });
@@ -266,28 +222,6 @@ export default function DayTraderPage() {
     }
   };
 
-  // Fetch market status
-  const fetchMarketStatus = async () => {
-    try {
-      const response = await fetch('/api/market-status');
-      const data = await response.json();
-      setMarketStatus(data);
-    } catch (err) {
-      console.error('Error fetching market status:', err);
-    }
-  };
-
-  // Fetch Alpaca usage stats
-  const fetchAlpacaUsage = async () => {
-    try {
-      const response = await fetch('/api/alpaca-usage');
-      const data = await response.json();
-      setAlpacaUsage(data);
-    } catch (err) {
-      console.error('Error fetching Alpaca usage:', err);
-    }
-  };
-
   // Fetch CoinAPI usage stats
   const fetchCoinApiUsage = async () => {
     try {
@@ -299,7 +233,7 @@ export default function DayTraderPage() {
     }
   };
 
-  // Run the intraday scanner manually (tab-aware: stocks or crypto)
+  // Run the crypto scanner manually
   const runScanner = async () => {
     if (!user) {
       toast({
@@ -313,15 +247,10 @@ export default function DayTraderPage() {
     setScannerRunning(true);
     setError(null);
 
-    // Determine which scanner to run based on active tab
-    const isStocks = activeTab === 'stocks';
-    const scannerType = isStocks ? 'stock' : 'crypto';
-    const endpoint = isStocks ? '/api/scan/intraday/manual' : '/api/scan/intraday/crypto';
-
     try {
       toast({
-        title: 'Scanner Starting',
-        description: `Running ${scannerType} intraday market scan...`,
+        title: 'Crypto Scanner Starting',
+        description: `Scanning ${cryptoTierInfo.totalCoins} cryptocurrencies...`,
       });
 
       // Get the current session token
@@ -331,7 +260,7 @@ export default function DayTraderPage() {
         throw new Error('No active session');
       }
 
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/scan/intraday/crypto', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,28 +274,17 @@ export default function DayTraderPage() {
         throw new Error(data.message || 'Scanner failed');
       }
 
-      if (data.skipped) {
-        toast({
-          title: 'Scanner Skipped',
-          description: data.message || data.reason || 'Market is closed',
-          variant: 'default',
-        });
-      } else {
-        toast({
-          title: 'Scanner Complete',
-          description: data.message || 'New opportunities have been found. Refreshing...',
-        });
+      toast({
+        title: 'Crypto Scanner Complete',
+        description: data.message || 'New crypto opportunities found. Refreshing...',
+      });
 
-        // Refresh opportunities and usage stats after scan completes
-        setTimeout(() => {
-          fetchOpportunities();
-          if (activeTab === 'stocks') {
-            fetchAlpacaUsage();
-          } else {
-            fetchCoinApiUsage();
-          }
-        }, 1000);
-      }
+      // Refresh opportunities and usage stats after scan completes
+      setTimeout(() => {
+        fetchOpportunities();
+        fetchCoinApiUsage();
+      }, 1000);
+
     } catch (err) {
       console.error('Error running scanner:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to run scanner';
@@ -386,14 +304,10 @@ export default function DayTraderPage() {
   useEffect(() => {
     if (user) {
       fetchOpportunities();
-      fetchMarketStatus();
-      fetchAlpacaUsage();
       fetchCoinApiUsage();
 
       const interval = setInterval(() => {
         fetchOpportunities();
-        fetchMarketStatus();
-        fetchAlpacaUsage();
         fetchCoinApiUsage();
       }, 10000); // 10 seconds
 
@@ -437,17 +351,17 @@ export default function DayTraderPage() {
     return `${minutes}m ${seconds}s`;
   };
 
-  // Get badge color based on confidence level
+  // Get badge color based on confidence level (WCAG AA compliant)
   const getConfidenceBadgeColor = (level: string): string => {
     switch (level) {
       case 'high':
-        return 'bg-green-500 text-white';
+        return 'bg-green-600 text-white font-semibold'; // WCAG AA: 4.5:1
       case 'medium':
-        return 'bg-yellow-500 text-white';
+        return 'bg-amber-600 text-white font-semibold'; // WCAG AA: 4.5:1
       case 'low':
-        return 'bg-red-500 text-white';
+        return 'bg-red-600 text-white font-semibold'; // WCAG AA: 4.5:1
       default:
-        return 'bg-gray-500 text-white';
+        return 'bg-slate-600 text-white font-semibold';
     }
   };
 
@@ -522,203 +436,138 @@ export default function DayTraderPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
+      {/* Enhanced Crypto-Only Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Day Trader</h1>
-          <p className="text-muted-foreground">Live intraday setups • Auto-refreshing every 10s</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="relative group">
-            <Button
-              onClick={runScanner}
-              disabled={scannerRunning || isScannerDisabled}
-              variant="default"
-            >
-              {scannerRunning ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="mr-2 h-4 w-4" />
-              )}
-              {scannerRunning
-                ? 'Scanning...'
-                : activeTab === 'stocks'
-                  ? 'Run Stock Scanner'
-                  : cryptoTierInfo.totalCoins > 0
-                    ? `Scan ${cryptoTierInfo.totalCoins} Cryptos`
-                    : 'No Scan This Minute'
-              }
-            </Button>
-            {isScannerDisabled && !scannerRunning && (
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                {activeTab === 'stocks'
-                  ? 'Alpaca API limit reached - wait for reset'
-                  : 'Scanner is available - no rate limits!'}
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <Bitcoin className="h-8 w-8 text-orange-500" />
+            <h1 className="text-3xl md:text-4xl font-bold">Crypto Day Trader</h1>
           </div>
-          <Button onClick={fetchOpportunities} disabled={loading} variant="outline">
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <p className="text-slate-600 dark:text-slate-400 mt-1">
+            Live cryptocurrency intraday setups • Auto-refreshing every 10s • 24/7 trading
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={runScanner}
+            disabled={scannerRunning || isScannerDisabled}
+            variant="default"
+            size="lg"
+            className="h-12 px-6 text-base font-semibold"
+          >
+            {scannerRunning ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-5 w-5" />
+            )}
+            {scannerRunning
+              ? 'Scanning...'
+              : cryptoTierInfo.totalCoins > 0
+                ? `Scan ${cryptoTierInfo.totalCoins} Cryptos`
+                : 'No Scan This Minute'
+            }
+          </Button>
+          <Button
+            onClick={fetchOpportunities}
+            disabled={loading}
+            variant="outline"
+            size="lg"
+            className="h-12 px-6"
+          >
+            <RefreshCw className={`mr-2 h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
       </div>
 
-      {/* Stock/Crypto Tabs - MOVED TO TOP */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'stocks' | 'crypto')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="stocks" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Stocks ({stockOpportunities.length})
-          </TabsTrigger>
-          <TabsTrigger value="crypto" className="flex items-center gap-2">
-            <Bitcoin className="h-4 w-4" />
-            Crypto ({cryptoOpportunities.length})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Market Status & API Usage Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Market Status Card */}
-        {marketStatus && (
-          <Card>
-            <CardContent className="pt-6">
+      {/* Crypto-Only Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* CoinAPI Usage Card - Enhanced */}
+        <Card className="border-orange-200 dark:border-orange-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Bitcoin className={`h-6 w-6 ${
+                coinApiUsage?.available && coinApiUsage.stats
+                  ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'text-red-500' :
+                     coinApiUsage.stats.estimatedScansRemaining < 50 ? 'text-amber-500' :
+                     'text-green-500')
+                  : 'text-slate-400'
+              }`} />
+              CoinAPI Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Activity className={`h-5 w-5 ${marketStatus.isOpen ? 'text-green-500' : 'text-red-500'}`} />
-                  <div>
-                    <p className="font-semibold">Market Status: {marketStatus.status.toUpperCase()}</p>
-                    <p className="text-sm text-muted-foreground">{marketStatus.message}</p>
-                  </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    {coinApiUsage?.available && coinApiUsage.stats
+                      ? `$${coinApiUsage.stats.balance.toFixed(2)}`
+                      : 'No data'}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Account Balance</p>
                 </div>
-                <Badge className={marketStatus.isOpen ? 'bg-green-500' : 'bg-red-500'}>
-                  {marketStatus.isOpen ? 'OPEN' : 'CLOSED'}
+                <Badge className={`text-sm px-3 py-1 ${
+                  coinApiUsage?.available && coinApiUsage.stats
+                    ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'bg-red-600' :
+                       coinApiUsage.stats.estimatedScansRemaining < 50 ? 'bg-amber-600' :
+                       'bg-green-600')
+                    : 'bg-slate-400'
+                }`}>
+                  {coinApiUsage?.available && coinApiUsage.stats
+                    ? `${coinApiUsage.stats.creditsPerScan} credits/scan`
+                    : 'IDLE'}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Alpaca API Usage Card */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Activity className={`h-5 w-5 ${
-                  alpacaUsage?.available && alpacaUsage.stats
-                    ? (alpacaUsage.stats.percentUsed >= 90 ? 'text-red-500' :
-                       alpacaUsage.stats.percentUsed >= 70 ? 'text-orange-500' :
-                       'text-green-500')
-                    : 'text-gray-400'
-                }`} />
-                <div>
-                  <p className="font-semibold">Alpaca API Usage</p>
-                  <p className="text-sm text-muted-foreground">
-                    {alpacaUsage?.available && alpacaUsage.stats
-                      ? `${alpacaUsage.stats.requestsRemaining}/${alpacaUsage.stats.requestsLimit} requests remaining`
-                      : 'No API calls made yet'}
+              {coinApiUsage?.available && coinApiUsage.stats && (
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  <p>~{coinApiUsage.stats.estimatedScansRemaining} scans remaining</p>
+                  <p className="text-xs mt-1">
+                    {coinApiUsage.stats.cryptosPerScan} cryptos per scan
                   </p>
                 </div>
-              </div>
-              <Badge className={
-                alpacaUsage?.available && alpacaUsage.stats
-                  ? (alpacaUsage.stats.percentUsed >= 90 ? 'bg-red-500' :
-                     alpacaUsage.stats.percentUsed >= 70 ? 'bg-orange-500' :
-                     'bg-green-500')
-                  : 'bg-gray-400'
-              }>
-                {alpacaUsage?.available && alpacaUsage.stats
-                  ? `${alpacaUsage.stats.percentUsed}% USED`
-                  : 'IDLE'}
-              </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* CoinAPI Usage Card (Crypto) */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Bitcoin className={`h-5 w-5 ${
-                  coinApiUsage?.available && coinApiUsage.stats
-                    ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'text-red-500' :
-                       coinApiUsage.stats.estimatedScansRemaining < 50 ? 'text-orange-500' :
-                       'text-green-500')
-                    : 'text-gray-400'
-                }`} />
+        {/* Crypto Scan Schedule Card - Enhanced */}
+        <Card className="border-blue-200 dark:border-blue-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-6 w-6 text-blue-500" />
+              Tiered Scan Schedule
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold">CoinAPI (Crypto)</p>
-                  <p className="text-sm text-muted-foreground">
-                    {coinApiUsage?.available && coinApiUsage.stats
-                      ? `$${coinApiUsage.stats.balance.toFixed(2)} balance`
-                      : 'No API calls made yet'}
-                  </p>
-                  {coinApiUsage?.available && coinApiUsage.stats && (
-                    <p className="text-xs text-muted-foreground">
-                      ~{coinApiUsage.stats.estimatedScansRemaining} scans remaining
-                    </p>
-                  )}
+                  <p className="text-2xl font-bold">:{cryptoTierInfo.minute.toString().padStart(2, '0')}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Current Minute</p>
                 </div>
+                <Badge className={`text-sm px-3 py-1 ${cryptoTierInfo.totalCoins > 0 ? 'bg-green-600' : 'bg-slate-400'}`}>
+                  {cryptoTierInfo.totalCoins > 0 ? `${cryptoTierInfo.totalCoins} COINS` : 'IDLE'}
+                </Badge>
               </div>
-              <Badge className={
-                coinApiUsage?.available && coinApiUsage.stats
-                  ? (coinApiUsage.stats.estimatedScansRemaining < 10 ? 'bg-red-500' :
-                     coinApiUsage.stats.estimatedScansRemaining < 50 ? 'bg-orange-500' :
-                     'bg-green-500')
-                  : 'bg-gray-400'
-              }>
-                {coinApiUsage?.available && coinApiUsage.stats
-                  ? `${coinApiUsage.stats.creditsPerScan} credits/scan`
-                  : 'IDLE'}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Crypto Scan Schedule Card */}
-        {activeTab === 'crypto' && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Bitcoin className={`h-5 w-5 ${
-                      cryptoTierInfo.totalCoins > 0 ? 'text-green-500' : 'text-gray-400'
-                    }`} />
-                    <div>
-                      <p className="font-semibold">Scan Schedule</p>
-                      <p className="text-sm text-muted-foreground">
-                        Minute :{cryptoTierInfo.minute.toString().padStart(2, '0')}
-                      </p>
+              {cryptoTierInfo.tiers.length > 0 ? (
+                <div className="space-y-2">
+                  {cryptoTierInfo.tiers.map((t) => (
+                    <div key={t.tier} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900 rounded">
+                      <span className="text-sm font-medium">Tier {t.tier}: {t.label}</span>
+                      <Badge variant="outline" className="font-semibold">{t.count} coins</Badge>
                     </div>
-                  </div>
-                  <Badge className={cryptoTierInfo.totalCoins > 0 ? 'bg-green-500' : 'bg-gray-400'}>
-                    {cryptoTierInfo.totalCoins > 0 ? `${cryptoTierInfo.totalCoins} COINS` : 'IDLE'}
-                  </Badge>
+                  ))}
                 </div>
-                {cryptoTierInfo.tiers.length > 0 && (
-                  <div className="space-y-1">
-                    {cryptoTierInfo.tiers.map((t) => (
-                      <div key={t.tier} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Tier {t.tier} ({t.label})</span>
-                        <Badge variant="outline" className="text-xs">{t.count} coins</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {cryptoTierInfo.totalCoins === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Next scan at :{((Math.floor(cryptoTierInfo.minute / 5) + 1) * 5).toString().padStart(2, '0')}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Next scan at :{((Math.floor(cryptoTierInfo.minute / 5) + 1) * 5).toString().padStart(2, '0')}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Error Display */}
@@ -947,14 +796,13 @@ export default function DayTraderPage() {
         </CardContent>
       </Card>
 
-      {/* Opportunities Content (Tabs moved to top) */}
-      {activeTab === 'stocks' && renderOpportunitiesList(stockOpportunities, 'stocks')}
-      {activeTab === 'crypto' && renderOpportunitiesList(cryptoOpportunities, 'crypto')}
+      {/* Crypto Opportunities List */}
+      {renderOpportunitiesList(cryptoOpportunities)}
     </div>
   );
 
-  // Helper function to render opportunities list
-  function renderOpportunitiesList(opps: IntradayOpportunity[], assetType: 'stocks' | 'crypto') {
+  // Helper function to render crypto opportunities list
+  function renderOpportunitiesList(opps: IntradayOpportunity[]) {
     if (loading && opps.length === 0) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -967,20 +815,11 @@ export default function DayTraderPage() {
       return (
         <Card>
           <CardContent className="pt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              {assetType === 'stocks' ? (
-                <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              ) : (
-                <Bitcoin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              )}
-              <p className="text-lg font-medium">No active {assetType} opportunities</p>
-              <p className="text-sm">New setups will appear here when the scanner finds them</p>
-              {marketStatus && !marketStatus.isOpen && assetType === 'stocks' && (
-                <p className="text-sm mt-2">Stock market is currently closed</p>
-              )}
-              {assetType === 'crypto' && (
-                <p className="text-sm mt-2 text-green-600">Crypto markets trade 24/7</p>
-              )}
+            <div className="text-center py-12 text-slate-600 dark:text-slate-400">
+              <Bitcoin className="h-16 w-16 mx-auto mb-4 opacity-50 text-orange-500" />
+              <p className="text-xl font-semibold mb-2">No Active Crypto Opportunities</p>
+              <p className="text-sm mb-1">New setups will appear here when the scanner finds them</p>
+              <p className="text-sm text-green-600 dark:text-green-400 font-medium">Crypto markets trade 24/7 • Scan anytime</p>
             </div>
           </CardContent>
         </Card>
@@ -989,12 +828,12 @@ export default function DayTraderPage() {
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
-            Active {assetType === 'stocks' ? 'Stock' : 'Crypto'} Opportunities ({opps.length})
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <h2 className="text-2xl font-bold">
+            Active Crypto Opportunities ({opps.length})
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Showing {opps.length} live setup{opps.length !== 1 ? 's' : ''}
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Showing {opps.length} live crypto setup{opps.length !== 1 ? 's' : ''}
           </p>
         </div>
         <div className="grid gap-4">
@@ -1134,19 +973,23 @@ export default function DayTraderPage() {
                       </div>
                     )}
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 pt-2">
-                      <Button variant="default" className="flex-1" disabled={isExpired}>
-                        <Target className="mr-2 h-4 w-4" />
+                    {/* Action Buttons - Enhanced Touch Targets (48px minimum) */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-12 sm:h-11 text-base font-semibold"
+                        disabled={isExpired}
+                      >
+                        <Target className="mr-2 h-5 w-5" />
                         View Chart
                       </Button>
                       <Button
                         variant="default"
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        className="flex-1 h-12 sm:h-11 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold"
                         disabled={isExpired}
                         onClick={() => handlePaperTrade(opp)}
                       >
-                        <DollarSign className="mr-2 h-4 w-4" />
+                        <Bitcoin className="mr-2 h-5 w-5" />
                         Paper Trade
                       </Button>
                     </div>

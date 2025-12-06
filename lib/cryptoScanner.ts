@@ -6,30 +6,32 @@
  *
  * DATA SOURCE: CoinAPI (PRIMARY - ACTIVE with $30 credits)
  * Uses date-bounded queries for 10 credit cap optimization
- * Cost: ~20 credits per crypto (15m + 1H data) = 300 credits per scan
+ * Cost: ~20 credits per crypto (15m + 1H data) = 200 credits per scan
+ *
+ * HIGH-FREQUENCY STRATEGY:
+ * - 10 elite cryptos (highest volume + volatility)
+ * - 15-minute scan frequency (96 scans/day)
+ * - Daily cost: 96 × 200 = 19,200 credits (~$6.40/day at $1 = 3,000 credits)
+ * - Optimized for catching momentum shifts and directional moves
  */
 
 import { batchGetCryptoMultiTimeframe, getNext15MinBarClose } from '@/lib/cryptoData/coinApiAdapter';
 import { Candle } from '@/lib/types';
 import { createClient } from '@supabase/supabase-js';
 
-// Top crypto for day trading (high volume, good liquidity)
+// Top 10 crypto for high-frequency day trading (elite volume + volatility)
+// Optimized for 15-minute scans (96/day × 10 coins × 20 credits = 19,200 credits/day)
 const CRYPTO_UNIVERSE = [
-  'BTC/USD',
-  'ETH/USD',
-  'SOL/USD',
-  'BNB/USD',
-  'XRP/USD',
-  'ADA/USD',
-  'AVAX/USD',
-  'DOGE/USD',
-  'DOT/USD',
-  'MATIC/USD',
-  'LINK/USD',
-  'UNI/USD',
-  'ATOM/USD',
-  'LTC/USD',
-  'NEAR/USD',
+  'BTC/USD',   // #1 - King of crypto, highest liquidity
+  'ETH/USD',   // #2 - Second largest, high volume
+  'SOL/USD',   // #3 - High volatility, fast moves
+  'BNB/USD',   // #4 - Exchange token, solid liquidity
+  'XRP/USD',   // #5 - High volume, institutional interest
+  'ADA/USD',   // #6 - Consistent volume, good for patterns
+  'AVAX/USD',  // #7 - Fast blockchain, volatile
+  'DOGE/USD',  // #8 - Meme king, extreme volatility
+  'MATIC/USD', // #9 - Layer 2, good volume
+  'LINK/USD',  // #10 - Oracle leader, consistent patterns
 ];
 
 interface CryptoAnalysisResult {
@@ -127,15 +129,18 @@ async function analyzeCrypto(
 /**
  * Main crypto scanner function - called by API route
  * Returns the count of opportunities found
+ *
+ * @param userId - User ID from authenticated session (required for database foreign key)
  */
-export async function runCryptoScan(): Promise<number> {
+export async function runCryptoScan(userId: string): Promise<number> {
   console.log('\n═══════════════════════════════════════════════════════════');
-  console.log('  CRYPTO INTRADAY SCANNER (15-MIN BARS)');
+  console.log('  CRYPTO INTRADAY SCANNER (HIGH-FREQUENCY)');
   console.log('═══════════════════════════════════════════════════════════\n');
 
   const scanTime = new Date().toISOString();
   console.log(`Scan Time: ${scanTime}`);
-  console.log(`Universe: ${CRYPTO_UNIVERSE.length} crypto pairs\n`);
+  console.log(`Strategy: High-frequency (15-min scans, 10 elite cryptos)`);
+  console.log(`Universe: ${CRYPTO_UNIVERSE.length} crypto pairs (optimized for momentum)\n`);
 
   // Collect successful recommendations
   const recommendations: any[] = [];
@@ -204,31 +209,42 @@ export async function runCryptoScan(): Promise<number> {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Use a system user ID for crypto scanner (all users see these opportunities)
-    // This is a shared scanning service - not user-specific
-    const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'; // Placeholder system user
-    console.log('\n💾 Saving opportunities as system-generated (shared across all users)...');
+    // Use the authenticated user's ID for database foreign key constraint
+    console.log(`\n💾 Saving crypto opportunities for user ${userId}...`);
 
-    // Delete old crypto opportunities (older than 4 hours)
-    const fourHoursAgo = new Date();
-    fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
+    // Delete ALL existing crypto opportunities for this user to avoid conflicts
+    // This prevents 409 Conflict errors from unique constraints
+    console.log(`\n🧹 Deleting all existing crypto opportunities for user...`);
 
-    console.log(`\n🧹 Deleting crypto opportunities older than 4 hours...`);
-    const { error: deleteError } = await supabase
+    // Add timeout protection for cleanup (5 seconds)
+    const cleanupPromise = supabase
       .from('intraday_opportunities')
       .delete()
-      .eq('asset_type', 'crypto')
-      .lt('created_at', fourHoursAgo.toISOString());
+      .eq('user_id', userId)
+      .eq('asset_type', 'crypto');
 
-    if (deleteError) {
-      console.warn('⚠️  Warning: Failed to cleanup old crypto opportunities:', deleteError);
-    } else {
-      console.log('✅ Cleanup complete');
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Cleanup timeout after 5s')), 5000)
+    );
+
+    try {
+      const { error: deleteError, count } = await Promise.race([cleanupPromise, timeoutPromise]) as any;
+
+      if (deleteError) {
+        console.warn('⚠️  Warning: Failed to cleanup existing crypto opportunities:', deleteError);
+        console.warn('   Proceeding with insert anyway (may cause 409 Conflict)...');
+      } else {
+        console.log(`✅ Cleanup complete (deleted ${count || 0} existing records)`);
+      }
+    } catch (cleanupError) {
+      console.warn('⚠️  Warning: Cleanup operation failed or timed out:', cleanupError);
+      console.warn('   Proceeding with insert anyway (may cause 409 Conflict)...');
     }
 
     // Map recommendations to intraday_opportunities format (CRYPTO for Day Trader page)
+    console.log(`\n📦 Preparing ${recommendations.length} opportunities for database...`);
     const opportunities = recommendations.map(rec => ({
-      user_id: SYSTEM_USER_ID,
+      user_id: userId,
       symbol: rec.symbol,
       timeframe: rec.timeframe,
       scan_timestamp: rec.scan_date,
@@ -248,14 +264,35 @@ export async function runCryptoScan(): Promise<number> {
       asset_type: 'crypto',
     }));
 
-    // Insert new opportunities
+    // Log sample opportunity for debugging
+    console.log(`   Sample opportunity:`, {
+      symbol: opportunities[0].symbol,
+      score: opportunities[0].opportunity_score,
+      expires_at: opportunities[0].expires_at,
+    });
+
+    // Insert new opportunities with timeout protection (10 seconds)
     console.log(`\n📝 Inserting ${opportunities.length} crypto opportunities...`);
-    const { error: insertError } = await supabase
+    console.log(`   Insert started at: ${new Date().toISOString()}`);
+
+    const insertPromise = supabase
       .from('intraday_opportunities')
       .insert(opportunities);
 
+    const insertTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Insert timeout after 10s')), 10000)
+    );
+
+    const { error: insertError, status, statusText } = await Promise.race([insertPromise, insertTimeoutPromise]) as any;
+
+    console.log(`   Insert completed at: ${new Date().toISOString()}`);
+    console.log(`   Response status: ${status} ${statusText}`);
+
     if (insertError) {
       console.error('❌ Insert error:', insertError);
+      console.error('   Error code:', insertError.code);
+      console.error('   Error message:', insertError.message);
+      console.error('   Error details:', insertError.details);
       throw insertError;
     }
 
@@ -263,6 +300,8 @@ export async function runCryptoScan(): Promise<number> {
 
   } catch (error) {
     console.error('\n❌ Error saving to database:', error);
+    console.error('   Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('   Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     throw error;
   }
 

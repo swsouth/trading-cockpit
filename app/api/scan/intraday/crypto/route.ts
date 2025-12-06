@@ -63,7 +63,8 @@ export async function POST(request: NextRequest) {
       console.log('✓ Starting crypto scan (FOREGROUND - with full feedback)');
 
       // Run scanner in foreground (AWAIT - provide full feedback to user)
-      const opportunitiesCount = await runCryptoScan();
+      // Pass user ID for database foreign key constraint
+      const opportunitiesCount = await runCryptoScan(user.id);
 
       console.log(`✅ Crypto scan completed - found ${opportunitiesCount} opportunities`);
 
