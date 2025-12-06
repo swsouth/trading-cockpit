@@ -576,7 +576,7 @@ export default function DayTraderPage() {
             }}
             className="gap-2"
           >
-            <TrendingUp className="h-3 w-3" />
+            <TrendingUp className="h-4 w-4" />
             Best Today (75+)
           </Button>
           <Button
@@ -591,7 +591,7 @@ export default function DayTraderPage() {
             }}
             className="gap-2 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/20"
           >
-            <TrendingUp className="h-3 w-3" />
+            <TrendingUp className="h-4 w-4" />
             Long Plays (60+)
           </Button>
           <Button
@@ -606,7 +606,7 @@ export default function DayTraderPage() {
             }}
             className="gap-2 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20"
           >
-            <TrendingUp className="h-3 w-3 rotate-180" />
+            <TrendingUp className="h-4 w-4 rotate-180" />
             Short Plays (60+)
           </Button>
           <Button
@@ -621,7 +621,7 @@ export default function DayTraderPage() {
             }}
             className="gap-2 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/20"
           >
-            <Badge variant="outline" className="h-3 w-3 p-0 rounded-full bg-purple-600 border-0" />
+            <Badge variant="outline" className="h-4 w-4 p-0 rounded-full bg-purple-600 border-0" />
             High Confidence
           </Button>
           <Button
@@ -636,7 +636,7 @@ export default function DayTraderPage() {
             }}
             className="gap-2 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/20"
           >
-            <Clock className="h-3 w-3" />
+            <Clock className="h-4 w-4" />
             Expiring Soon
           </Button>
           {/* Clear All Filters */}
@@ -859,15 +859,15 @@ export default function DayTraderPage() {
                           {/* Execution Quality Badges */}
                           <div className="flex items-center gap-2 mt-2">
                             <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.spread.bgColor} ${badges.spread.color}`} title={badges.spread.tooltip}>
-                              <badges.spread.icon className="h-3 w-3" />
+                              <badges.spread.icon className="h-4 w-4" />
                               <span>{badges.spread.label}</span>
                             </div>
                             <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.volume.bgColor} ${badges.volume.color}`} title={badges.volume.tooltip}>
-                              <badges.volume.icon className="h-3 w-3" />
+                              <badges.volume.icon className="h-4 w-4" />
                               <span>{badges.volume.label}</span>
                             </div>
                             <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badges.news.bgColor} ${badges.news.color}`} title={badges.news.tooltip}>
-                              <badges.news.icon className="h-3 w-3" />
+                              <badges.news.icon className="h-4 w-4" />
                               <span>{badges.news.label}</span>
                             </div>
                           </div>
@@ -884,9 +884,9 @@ export default function DayTraderPage() {
                   <CardContent className="space-y-4">
                     {/* Countdown Timer */}
                     <div className={`flex items-center gap-2 p-3 rounded-lg ${
-                      isExpired ? 'bg-red-100 text-red-700' :
-                      isExpiringSoon ? 'bg-orange-100 text-orange-700' :
-                      'bg-blue-100 text-blue-700'
+                      isExpired ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300' :
+                      isExpiringSoon ? 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300' :
+                      'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
                     }`}>
                       <Clock className="h-4 w-4" />
                       <span className="font-semibold">
@@ -946,11 +946,11 @@ export default function DayTraderPage() {
                       </div>
                     )}
 
-                    {/* Action Buttons - Enhanced Touch Targets (48px minimum) */}
+                    {/* Action Buttons - WCAG AA Touch Targets (48px) */}
                     <div className="flex flex-col sm:flex-row gap-3 pt-2">
                       <Button
                         variant="outline"
-                        className="flex-1 h-12 sm:h-11 text-base font-semibold"
+                        className="flex-1 h-12 text-base font-semibold"
                         disabled={isExpired}
                       >
                         <Target className="mr-2 h-5 w-5" />
@@ -958,7 +958,7 @@ export default function DayTraderPage() {
                       </Button>
                       <Button
                         variant="default"
-                        className="flex-1 h-12 sm:h-11 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold"
+                        className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold"
                         disabled={isExpired}
                         onClick={() => handlePaperTrade(opp)}
                       >
