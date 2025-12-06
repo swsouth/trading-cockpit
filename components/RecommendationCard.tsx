@@ -30,6 +30,7 @@ import { getCompanyName } from '@/lib/stockNames';
 import { useHotList } from '@/hooks/use-hot-list';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import { ScoreBreakdownTooltip } from './ScoreBreakdownTooltip';
 
 // Dynamic import VettingBreakdown to avoid SSR issues with Radix UI Progress
 const VettingBreakdown = dynamic(() => import('./VettingBreakdown').then(mod => ({ default: mod.VettingBreakdown })), {
@@ -301,8 +302,14 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
             </div>
           </div>
           <div className="text-right">
-            <div className={`text-3xl font-bold ${getScoreColor(opportunity_score)}`}>
-              {opportunity_score}
+            <div className="flex items-center gap-1 justify-end">
+              <div className={`text-3xl font-bold ${getScoreColor(opportunity_score)}`}>
+                {opportunity_score}
+              </div>
+              <ScoreBreakdownTooltip
+                opportunityScore={opportunity_score}
+                confidenceLevel={confidence_level}
+              />
             </div>
             <div className="text-xs text-muted-foreground">Score</div>
           </div>
