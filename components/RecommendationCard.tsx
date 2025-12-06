@@ -21,6 +21,8 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import ChartModal from './ChartModal';
@@ -46,6 +48,7 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isPaperTrading, setIsPaperTrading] = useState(false);
   const [isPinnedState, setIsPinnedState] = useState(!!hotListId);
+  const [isExpanded, setIsExpanded] = useState(false); // NEW: Progressive disclosure state
 
   const { user } = useAuth();
   const { isPinning, isUnpinning, pinRecommendation, unpinRecommendation } = useHotList();
@@ -307,8 +310,8 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
       </CardHeader>
 
       <CardContent className="space-y-4 pl-5">
-        {/* Price Levels */}
-        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+        {/* COLLAPSED STATE: Essential 4-5 fields only */}
+        <div className="bg-muted/50 rounded-lg p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             {/* Entry */}
             <div>
@@ -381,76 +384,105 @@ export function RecommendationCard({ recommendation, onPaperTrade, hotListId, on
             </div>
           </div>
 
-          {/* Expected Timeframe & Risk/Reward */}
-          <div className="pt-2 border-t grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-3 w-3 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Expected</div>
-                <div className="font-medium">{getExpectedTimeframe(setup_type)}</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground mb-0.5">Risk/Reward</div>
-              <div className="font-bold text-blue-600 dark:text-blue-400">
-                {risk_reward_ratio.toFixed(2)}:1
-              </div>
+          {/* Risk/Reward - Always visible */}
+          <div className="pt-2 border-t flex justify-between items-center text-sm">
+            <div className="text-xs text-muted-foreground">Risk/Reward</div>
+            <div className="font-bold text-blue-600 dark:text-blue-400">
+              {risk_reward_ratio.toFixed(2)}:1
             </div>
           </div>
         </div>
 
-        {/* Technical Context */}
-        {(channel_status || trend) && (
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {channel_status && (
-              <div>
-                <div className="text-muted-foreground">Channel</div>
-                <div className="font-medium capitalize">{channel_status.replace(/_/g, ' ')}</div>
+        {/* Expand/Collapse Button */}
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-muted-foreground hover:text-foreground w-full"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-2" />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Show Details
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* EXPANDED STATE: Full details revealed on expand */}
+        {isExpanded && (
+          <>
+            {/* Expected Timeframe */}
+            <div className="bg-muted/30 rounded-lg p-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3 w-3 text-muted-foreground" />
+                <div>
+                  <div className="text-xs text-muted-foreground">Expected Timeframe</div>
+                  <div className="font-medium">{getExpectedTimeframe(setup_type)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Context */}
+            {(channel_status || trend) && (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {channel_status && (
+                  <div>
+                    <div className="text-muted-foreground">Channel</div>
+                    <div className="font-medium capitalize">{channel_status.replace(/_/g, ' ')}</div>
+                  </div>
+                )}
+                {trend && (
+                  <div>
+                    <div className="text-muted-foreground">Trend</div>
+                    <div className="font-medium capitalize">{trend}</div>
+                  </div>
+                )}
               </div>
             )}
-            {trend && (
-              <div>
-                <div className="text-muted-foreground">Trend</div>
-                <div className="font-medium capitalize">{trend}</div>
+
+            {/* High Risk Warning */}
+            {isHighRisk && (
+              <div className="text-sm bg-red-50 dark:bg-red-950/20 rounded-lg p-3 border border-red-200 dark:border-red-900">
+                <div className="font-bold text-red-900 dark:text-red-200 mb-1 flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  High Risk Trade
+                </div>
+                <p className="text-red-800 dark:text-red-300 text-xs">
+                  This recommendation has a low opportunity score (below 50/100). The setup lacks strong technical confirmation.
+                  Trade with extreme caution, use smaller position sizes, and consider this highly speculative.
+                </p>
               </div>
             )}
-          </div>
-        )}
 
-        {/* High Risk Warning */}
-        {isHighRisk && (
-          <div className="text-sm bg-red-50 dark:bg-red-950/20 rounded-lg p-3 border border-red-200 dark:border-red-900">
-            <div className="font-bold text-red-900 dark:text-red-200 mb-1 flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              High Risk Trade
-            </div>
-            <p className="text-red-800 dark:text-red-300 text-xs">
-              This recommendation has a low opportunity score (below 50/100). The setup lacks strong technical confirmation.
-              Trade with extreme caution, use smaller position sizes, and consider this highly speculative.
-            </p>
-          </div>
-        )}
+            {/* Rationale */}
+            {rationale && (
+              <div className="text-sm bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-100 dark:border-blue-900">
+                <div className="font-medium text-blue-900 dark:text-blue-200 mb-1">
+                  Analysis
+                </div>
+                <p className="text-blue-800 dark:text-blue-300">{rationale}</p>
+              </div>
+            )}
 
-        {/* Rationale */}
-        {rationale && (
-          <div className="text-sm bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-100 dark:border-blue-900">
-            <div className="font-medium text-blue-900 dark:text-blue-200 mb-1">
-              Analysis
-            </div>
-            <p className="text-blue-800 dark:text-blue-300">{rationale}</p>
-          </div>
-        )}
-
-        {/* Enhanced Vetting Breakdown */}
-        {recommendation.vetting_score !== null && recommendation.vetting_score !== undefined && (
-          <VettingBreakdown
-            vettingScore={recommendation.vetting_score}
-            vettingPassed={recommendation.vetting_passed ?? false}
-            vettingSummary={recommendation.vetting_summary ?? 'No summary available'}
-            vettingRedFlags={recommendation.vetting_red_flags ?? []}
-            vettingGreenFlags={recommendation.vetting_green_flags ?? []}
-            vettingChecks={recommendation.vetting_checks}
-          />
+            {/* Enhanced Vetting Breakdown */}
+            {recommendation.vetting_score !== null && recommendation.vetting_score !== undefined && (
+              <VettingBreakdown
+                vettingScore={recommendation.vetting_score}
+                vettingPassed={recommendation.vetting_passed ?? false}
+                vettingSummary={recommendation.vetting_summary ?? 'No summary available'}
+                vettingRedFlags={recommendation.vetting_red_flags ?? []}
+                vettingGreenFlags={recommendation.vetting_green_flags ?? []}
+                vettingChecks={recommendation.vetting_checks}
+              />
+            )}
+          </>
         )}
 
         {/* Metadata */}
