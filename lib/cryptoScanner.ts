@@ -193,7 +193,7 @@ export async function runCryptoScan(): Promise<number> {
     console.log(`  ${rec.symbol}: ${rec.setup_type} (${rec.opportunity_score}/100) - Valid until ${new Date(rec.valid_until!).toLocaleTimeString()}`);
   });
 
-  // Save to database (intraday_opportunities table - unified with stock scanner)
+  // Save to database (intraday_opportunities table - CRYPTO ONLY, Day Trader page)
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -204,23 +204,31 @@ export async function runCryptoScan(): Promise<number> {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Use a system user ID for crypto scanner (all users see these opportunities)
+    // This is a shared scanning service - not user-specific
+    const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000'; // Placeholder system user
+    console.log('\n💾 Saving opportunities as system-generated (shared across all users)...');
+
     // Delete old crypto opportunities (older than 4 hours)
     const fourHoursAgo = new Date();
     fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
+    console.log(`\n🧹 Deleting crypto opportunities older than 4 hours...`);
     const { error: deleteError } = await supabase
       .from('intraday_opportunities')
       .delete()
       .eq('asset_type', 'crypto')
-      .lt('scan_timestamp', fourHoursAgo.toISOString());
+      .lt('created_at', fourHoursAgo.toISOString());
 
     if (deleteError) {
       console.warn('⚠️  Warning: Failed to cleanup old crypto opportunities:', deleteError);
+    } else {
+      console.log('✅ Cleanup complete');
     }
 
-    // Map recommendations to intraday_opportunities format
+    // Map recommendations to intraday_opportunities format (CRYPTO for Day Trader page)
     const opportunities = recommendations.map(rec => ({
-      user_id: null, // System-generated (not user-specific)
+      user_id: SYSTEM_USER_ID,
       symbol: rec.symbol,
       timeframe: rec.timeframe,
       scan_timestamp: rec.scan_date,
@@ -234,18 +242,20 @@ export async function runCryptoScan(): Promise<number> {
       current_price: rec.current_price,
       channel_status: rec.channel_status,
       pattern_detected: rec.pattern_detected,
-      rsi: null, // Not calculated in current implementation
+      rsi: null,
       expires_at: rec.valid_until,
       status: 'active',
       asset_type: 'crypto',
     }));
 
     // Insert new opportunities
+    console.log(`\n📝 Inserting ${opportunities.length} crypto opportunities...`);
     const { error: insertError } = await supabase
       .from('intraday_opportunities')
       .insert(opportunities);
 
     if (insertError) {
+      console.error('❌ Insert error:', insertError);
       throw insertError;
     }
 
