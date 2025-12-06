@@ -1,6 +1,6 @@
 'use client';
 
-import { WatchlistDashboard } from '@/components/WatchlistDashboard';
+import { MissionControlDashboard } from '@/components/MissionControlDashboard';
 import { LandingPage } from '@/components/LandingPage';
 import { useAuth } from '@/lib/AuthContext';
 import { useEffect, useState } from 'react';
@@ -27,6 +27,6 @@ export default function HomePage() {
     return <LandingPage />;
   }
 
-  // Show dashboard for authenticated users
-  return <WatchlistDashboard />;
+  // Show Mission Control Dashboard for authenticated users (NEW UX)
+  return <MissionControlDashboard />;
 }
