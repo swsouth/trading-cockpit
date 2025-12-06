@@ -30,9 +30,12 @@ import { getCompanyName } from '@/lib/stockNames';
 import { useHotList } from '@/hooks/use-hot-list';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
-import { ScoreBreakdownTooltip } from './ScoreBreakdownTooltip';
+// Dynamic imports to avoid SSR issues with Radix UI components (Tooltip, Progress)
+const ScoreBreakdownTooltip = dynamic(
+  () => import('./ScoreBreakdownTooltip').then(mod => ({ default: mod.ScoreBreakdownTooltip })),
+  { ssr: false }
+);
 
-// Dynamic import VettingBreakdown to avoid SSR issues with Radix UI Progress
 const VettingBreakdown = dynamic(() => import('./VettingBreakdown').then(mod => ({ default: mod.VettingBreakdown })), {
   ssr: false,
   loading: () => <div className="text-sm text-muted-foreground">Loading vetting details...</div>,
